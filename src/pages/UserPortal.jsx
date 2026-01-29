@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { LogOut, Search, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { LogOut, Search, Plus, Bell } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import SolicitudCard from '../components/SolicitudCard';
@@ -7,14 +7,29 @@ import SolicitudDetail from '../components/SolicitudDetail';
 import CreateSolicitudModalUser from '../components/CreateSolicitudModalUser';
 
 const UserPortal = () => {
-  const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage, createSolicitud } = useAuth();
+  const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage, createSolicitud, markMessagesAsRead } = useAuth();
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
 
   // Filtrar solicitudes del usuario actual
   const userSolicitudes = solicitudes.filter(s => s.usuarioID === user.id);
+
+  // Contar mensajes no leídos
+  const unreadMessages = mensajes.filter(m => {
+    const solicitud = solicitudes.find(s => s.id === m.solicitudID);
+    return solicitud?.usuarioID === user.id && !m.leido && m.usuarioID !== user.id;
+  }).length;
+
+  // Solicitudes con mensajes sin leer
+  const solicitudesWithUnreadMessages = userSolicitudes.filter(sol => {
+    const hasUnread = mensajes.some(m => 
+      m.solicitudID === sol.id && !m.leido && m.usuarioID !== user.id
+    );
+    return hasUnread;
+  });
 
   // Aplicar búsqueda y filtros
   const filteredSolicitudes = userSolicitudes.filter(s => {
@@ -32,6 +47,12 @@ const UserPortal = () => {
   const solicitudMensajes = selectedSolicitud
     ? mensajes.filter(m => m.solicitudID === selectedSolicitud.id)
     : [];
+
+  useEffect(() => {
+    if (selectedSolicitud) {
+      markMessagesAsRead(selectedSolicitud.id);
+    }
+  }, [selectedSolicitud, markMessagesAsRead]);
 
   const handleLogout = async () => {
     const result = await Swal.fire({
@@ -92,6 +113,61 @@ const UserPortal = () => {
                 <Plus className="w-5 h-5" />
                 <span>Nueva Solicitud</span>
               </button>
+              
+              {/* Badge de notificaciones */}
+              <div className="relative">
+                <button 
+                  onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                  title="Mensajes sin leer"
+                >
+                  <Bell className="w-5 h-5" />
+                </button>
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadMessages}
+                  </span>
+                )}
+                
+                {/* Dropdown de notificaciones */}
+                {showNotificationsDropdown && (
+                  <div className="absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
+                    <div className="p-3 border-b border-gray-200 bg-gray-50">
+                      <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
+                    </div>
+                    {solicitudesWithUnreadMessages.length === 0 ? (
+                      <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
+                    ) : (
+                      solicitudesWithUnreadMessages.map(sol => {
+                        const unreadCount = mensajes.filter(m => 
+                          m.solicitudID === sol.id && !m.leido && m.usuarioID !== user.id
+                        ).length;
+                        return (
+                          <div
+                            key={sol.id}
+                            onClick={() => {
+                              setSelectedSolicitud(sol);
+                              setShowNotificationsDropdown(false);
+                            }}
+                            className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
+                                <p className="text-xs text-gray-600 mt-1">Estado: {sol.estado}</p>
+                              </div>
+                              <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
+                                {unreadCount}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+              
               <div className="text-right">
                 <p className="font-semibold">{user.name}</p>
                 <p className="text-blue-200 text-sm">{user.email}</p>

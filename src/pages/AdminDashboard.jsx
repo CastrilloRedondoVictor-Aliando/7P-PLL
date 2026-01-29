@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, BarChart3, Send, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, BarChart3, Send, Plus, Bell } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, getEstadoColor } from '../utils/helpers';
@@ -7,13 +7,42 @@ import { MOCK_USERS } from '../data/mockData';
 import CreateSolicitudModal from '../components/CreateSolicitudModal';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, logout, updateSolicitudEstado, sendMessage, createSolicitud } = useAuth();
+  const { user, solicitudes, documentos, mensajes, logout, updateSolicitudEstado, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterUsuario, setFilterUsuario] = useState('Todos');
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [showMessagesDropdown, setShowMessagesDropdown] = useState(false);
+  const [showDocsDropdown, setShowDocsDropdown] = useState(false);
+
+  // Contar mensajes no leídos de usuarios
+  const unreadMessages = mensajes.filter(m => {
+    const isUserMessage = MOCK_USERS.find(u => u.id === m.usuarioID)?.rol === 'user';
+    return isUserMessage && !m.leido && m.usuarioID !== user.id;
+  }).length;
+
+  // Obtener solicitudes con mensajes sin leer
+  const solicitudesWithUnreadMessages = solicitudes.filter(s => {
+    const hasUnreadMessages = mensajes.some(m => 
+      m.solicitudID === s.id && 
+      !m.leido && 
+      m.usuarioID !== user.id &&
+      MOCK_USERS.find(u => u.id === m.usuarioID)?.rol === 'user'
+    );
+    return hasUnreadMessages;
+  });
+
+  // Obtener solicitudes con documentos no vistos
+  const solicitudesWithNewDocs = solicitudes.filter(s => {
+    const unseenDocs = documentos.filter(d => 
+      d.solicitudID === s.id && !d.vistoPorAdmin
+    );
+    return unseenDocs.length > 0;
+  });
+  
+  const newDocsCount = documentos.filter(d => !d.vistoPorAdmin).length;
 
   // Filtrar solicitudes
   const filteredSolicitudes = solicitudes.filter(s => {
@@ -48,6 +77,12 @@ const AdminDashboard = () => {
   const solicitudMensajes = selectedSolicitud
     ? mensajes.filter(m => m.solicitudID === selectedSolicitud.id)
     : [];
+
+  useEffect(() => {
+    if (selectedSolicitud) {
+      markMessagesAsRead(selectedSolicitud.id);
+    }
+  }, [selectedSolicitud, markMessagesAsRead]);
 
   const handleLogout = async () => {
     const result = await Swal.fire({
@@ -104,6 +139,125 @@ const AdminDashboard = () => {
                 <Plus className="w-5 h-5" />
                 <span>Nueva Solicitud</span>
               </button>
+              
+              {/* Badge de mensajes no leídos */}
+              <div className="relative">
+                <button 
+                  onClick={() => {
+                    setShowMessagesDropdown(!showMessagesDropdown);
+                    setShowDocsDropdown(false);
+                  }}
+                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors" 
+                  title="Mensajes sin leer"
+                >
+                  <Bell className="w-5 h-5" />
+                </button>
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadMessages}
+                  </span>
+                )}
+                
+                {/* Dropdown de mensajes */}
+                {showMessagesDropdown && (
+                  <div className="absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
+                    <div className="p-3 border-b border-gray-200 bg-gray-50">
+                      <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
+                    </div>
+                    {solicitudesWithUnreadMessages.length === 0 ? (
+                      <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
+                    ) : (
+                      solicitudesWithUnreadMessages.map(sol => {
+                        const unreadCount = mensajes.filter(m => {
+                          const message = MOCK_USERS.find(u => u.id === m.usuarioID);
+                          return m.solicitudID === sol.id && 
+                            !m.leido && 
+                            message?.rol === 'user';
+                        }).length;
+                        const usuario = MOCK_USERS.find(u => u.id === sol.usuarioID);
+                        return (
+                          <div
+                            key={sol.id}
+                            onClick={() => {
+                              setSelectedSolicitud(sol);
+                              setShowMessagesDropdown(false);
+                            }}
+                            className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
+                                <p className="text-xs text-gray-600 mt-1">{usuario?.name}</p>
+                              </div>
+                              <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
+                                {unreadCount}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              {/* Badge de documentos nuevos */}
+              <div className="relative">
+                <button 
+                  onClick={() => {
+                    setShowDocsDropdown(!showDocsDropdown);
+                    setShowMessagesDropdown(false);
+                  }}
+                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors" 
+                  title="Documentos nuevos (24h)"
+                >
+                  <AlertCircle className="w-5 h-5" />
+                </button>
+                {newDocsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {newDocsCount}
+                  </span>
+                )}
+                
+                {/* Dropdown de documentos */}
+                {showDocsDropdown && (
+                  <div className="absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
+                    <div className="p-3 border-b border-gray-200 bg-gray-50">
+                      <h3 className="font-semibold text-gray-900">Documentos recientes ({newDocsCount})</h3>
+                    </div>
+                    {solicitudesWithNewDocs.length === 0 ? (
+                      <p className="text-gray-500 text-center py-6 text-sm">No hay documentos nuevos</p>
+                    ) : (
+                      solicitudesWithNewDocs.map(sol => {
+                        const recentDocs = documentos.filter(d => 
+                          d.solicitudID === sol.id && !d.vistoPorAdmin
+                        );
+                        const usuario = MOCK_USERS.find(u => u.id === sol.usuarioID);
+                        return (
+                          <div
+                            key={sol.id}
+                            onClick={() => {
+                              setSelectedSolicitud(sol);
+                              markDocsAsViewed(sol.id);
+                              setShowDocsDropdown(false);
+                            }}
+                            className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
+                                <p className="text-xs text-gray-600 mt-1">{usuario?.name}</p>
+                                <p className="text-xs text-gray-500 mt-1">{recentDocs.length} documento{recentDocs.length !== 1 ? 's' : ''} nuevo{recentDocs.length !== 1 ? 's' : ''}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+              
               <div className="text-right">
                 <p className="font-semibold">{user.name}</p>
                 <p className="text-blue-200 text-sm">{user.email}</p>

@@ -47,7 +47,8 @@ export const AuthProvider = ({ children }) => {
         nombreArchivo: file.name,
         urlBlob: '#',
         tamaño: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-        fechaCarga: new Date().toISOString()
+        fechaCarga: new Date().toISOString(),
+        vistoPorAdmin: false
       };
       
       Swal.fire({
@@ -123,6 +124,26 @@ export const AuthProvider = ({ children }) => {
     return newSolicitud;
   };
 
+  const markMessagesAsRead = (solicitudID) => {
+    setMensajes(prev => 
+      prev.map(msg => 
+        msg.solicitudID === solicitudID && msg.usuarioID !== user.id
+          ? { ...msg, leido: true }
+          : msg
+      )
+    );
+  };
+
+  const markDocsAsViewed = (solicitudID) => {
+    setDocumentos(prev =>
+      prev.map(doc =>
+        doc.solicitudID === solicitudID
+          ? { ...doc, vistoPorAdmin: true }
+          : doc
+      )
+    );
+  };
+
   const value = {
     user,
     solicitudes,
@@ -133,7 +154,9 @@ export const AuthProvider = ({ children }) => {
     uploadDocument,
     sendMessage,
     updateSolicitudEstado,
-    createSolicitud
+    createSolicitud,
+    markMessagesAsRead,
+    markDocsAsViewed
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -85,7 +85,8 @@ export const MOCK_DOCUMENTOS = [
     nombreArchivo: 'contrato_alpha_v1.pdf',
     urlBlob: '#',
     tamaño: '2.5 MB',
-    fechaCarga: '2026-01-22T09:15:00'
+    fechaCarga: '2026-01-22T09:15:00',
+    vistoPorAdmin: false
   },
   {
     id: 2,
@@ -93,7 +94,8 @@ export const MOCK_DOCUMENTOS = [
     nombreArchivo: 'informe_fiscal_q4.xlsx',
     urlBlob: '#',
     tamaño: '1.8 MB',
-    fechaCarga: '2026-01-22T10:30:00'
+    fechaCarga: '2026-01-22T10:30:00',
+    vistoPorAdmin: true
   }
 ];
 
