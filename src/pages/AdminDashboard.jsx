@@ -1,22 +1,28 @@
 import { useState } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, BarChart3 } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, BarChart3, Send, Plus } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import { MOCK_USERS } from '../data/mockData';
+import CreateSolicitudModal from '../components/CreateSolicitudModal';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, logout, updateSolicitudEstado } = useAuth();
+  const { user, solicitudes, documentos, mensajes, logout, updateSolicitudEstado, sendMessage, createSolicitud } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
+  const [filterUsuario, setFilterUsuario] = useState('Todos');
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Filtrar solicitudes
   const filteredSolicitudes = solicitudes.filter(s => {
     const matchesSearch = s.proyecto.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          s.comentarios.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterEstado === 'Todos' || s.estado === filterEstado;
-    return matchesSearch && matchesFilter;
-  });
+    const matchesUser = filterUsuario === 'Todos' || s.usuarioID === parseInt(filterUsuario);
+    return matchesSearch && matchesFilter && matchesUser;
+  }).sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
 
   // Estadísticas
   const stats = {
@@ -43,6 +49,43 @@ const AdminDashboard = () => {
     ? mensajes.filter(m => m.solicitudID === selectedSolicitud.id)
     : [];
 
+  const handleLogout = async () => {
+    const result = await Swal.fire({
+      title: '¿Cerrar sesión?',
+      text: '¿Estás seguro de que quieres cerrar sesión?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#1e40af',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, cerrar sesión',
+      cancelButtonText: 'Cancelar'
+    });
+    
+    if (result.isConfirmed) {
+      logout();
+    }
+  };
+
+  const handleCreateSolicitud = (usuarioID, proyecto, comentarios) => {
+    createSolicitud(usuarioID, proyecto, comentarios);
+    const usuario = MOCK_USERS.find(u => u.id === usuarioID);
+    Swal.fire({
+      icon: 'success',
+      title: '¡Solicitud creada!',
+      text: `Solicitud creada exitosamente para ${usuario?.name || 'el usuario'}`,
+      confirmButtonColor: '#1e40af',
+      timer: 3000,
+      showConfirmButton: false
+    });
+  };
+
+  const handleSendMessage = () => {
+    if (selectedSolicitud && newMessage.trim()) {
+      sendMessage(selectedSolicitud.id, newMessage);
+      setNewMessage('');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
@@ -54,12 +97,19 @@ const AdminDashboard = () => {
               <p className="text-blue-200 text-sm">Dashboard Administrativo</p>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="bg-white text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-2 font-semibold shadow-md"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Nueva Solicitud</span>
+              </button>
               <div className="text-right">
                 <p className="font-semibold">{user.name}</p>
                 <p className="text-blue-200 text-sm">{user.email}</p>
               </div>
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
                 title="Cerrar sesión"
               >
@@ -116,17 +166,19 @@ const AdminDashboard = () => {
 
         {/* Filtros */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar solicitudes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
-              />
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <select
+              value={filterUsuario}
+              onChange={(e) => setFilterUsuario(e.target.value)}
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+            >
+              <option value="Todos">Todos los usuarios</option>
+              {MOCK_USERS.filter(u => u.rol === 'user').map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.email})
+                </option>
+              ))}
+            </select>
 
             <select
               value={filterEstado}
@@ -139,6 +191,17 @@ const AdminDashboard = () => {
               <option value="Rechazada">Rechazada</option>
               <option value="Requiere más información">Requiere más información</option>
             </select>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar solicitudes..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+              />
+            </div>
           </div>
         </div>
 
@@ -278,20 +341,59 @@ const AdminDashboard = () => {
 
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Conversación ({solicitudMensajes.length})</h4>
-                  <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto space-y-3">
+                  <div className="bg-gray-50 rounded-lg p-4 mb-3 max-h-64 overflow-y-auto space-y-3">
                     {solicitudMensajes.length === 0 ? (
                       <p className="text-gray-500 text-center py-4">No hay mensajes</p>
                     ) : (
-                      solicitudMensajes.map(mensaje => (
-                        <div key={mensaje.id} className="bg-white p-3 rounded-lg border border-gray-200">
-                          <p className="text-xs font-semibold text-gray-600 mb-1">
-                            {getUserName(mensaje.usuarioID)}
-                          </p>
-                          <p className="text-sm text-gray-900">{mensaje.contenido}</p>
-                          <p className="text-xs text-gray-500 mt-1">{formatDate(mensaje.fechaEnvio)}</p>
-                        </div>
-                      ))
+                      solicitudMensajes.map(mensaje => {
+                        const isCurrentUser = mensaje.usuarioID === user.id;
+                        return (
+                          <div
+                            key={mensaje.id}
+                            className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div
+                              className={`max-w-[70%] rounded-lg p-3 ${
+                                isCurrentUser
+                                  ? 'bg-primary text-white'
+                                  : 'bg-white border border-gray-200'
+                              }`}
+                            >
+                              <p className={`text-xs font-semibold mb-1 ${
+                                isCurrentUser ? 'text-blue-200' : 'text-gray-600'
+                              }`}>
+                                {getUserName(mensaje.usuarioID)}
+                              </p>
+                              <p className="text-sm">{mensaje.contenido}</p>
+                              <p className={`text-xs mt-1 ${
+                                isCurrentUser ? 'text-blue-200' : 'text-gray-500'
+                              }`}>
+                                {formatDate(mensaje.fechaEnvio)}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
+                  </div>
+                  
+                  {/* Input para enviar mensajes */}
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                      placeholder="Escribe un mensaje..."
+                      className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                    />
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={!newMessage.trim()}
+                      className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                      <Send className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -299,6 +401,13 @@ const AdminDashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Modal de crear solicitud */}
+      <CreateSolicitudModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreate={handleCreateSolicitud}
+      />
     </div>
   );
 };

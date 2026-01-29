@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { LogOut, Search } from 'lucide-react';
+import { LogOut, Search, Plus } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import SolicitudCard from '../components/SolicitudCard';
 import SolicitudDetail from '../components/SolicitudDetail';
+import CreateSolicitudModalUser from '../components/CreateSolicitudModalUser';
 
 const UserPortal = () => {
-  const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage } = useAuth();
+  const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage, createSolicitud } = useAuth();
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Filtrar solicitudes del usuario actual
   const userSolicitudes = solicitudes.filter(s => s.usuarioID === user.id);
@@ -19,7 +22,7 @@ const UserPortal = () => {
                          s.comentarios.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterEstado === 'Todos' || s.estado === filterEstado;
     return matchesSearch && matchesFilter;
-  });
+  }).sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
 
   // Documentos y mensajes de la solicitud seleccionada
   const solicitudDocumentos = selectedSolicitud 
@@ -29,6 +32,23 @@ const UserPortal = () => {
   const solicitudMensajes = selectedSolicitud
     ? mensajes.filter(m => m.solicitudID === selectedSolicitud.id)
     : [];
+
+  const handleLogout = async () => {
+    const result = await Swal.fire({
+      title: '¿Cerrar sesión?',
+      text: '¿Estás seguro de que quieres cerrar sesión?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#1e40af',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, cerrar sesión',
+      cancelButtonText: 'Cancelar'
+    });
+    
+    if (result.isConfirmed) {
+      logout();
+    }
+  };
 
   const handleUploadDocument = (file) => {
     if (selectedSolicitud) {
@@ -42,6 +62,18 @@ const UserPortal = () => {
     }
   };
 
+  const handleCreateSolicitud = (proyecto, comentarios) => {
+    createSolicitud(user.id, proyecto, comentarios);
+    Swal.fire({
+      icon: 'success',
+      title: '¡Solicitud creada!',
+      text: 'Tu solicitud ha sido enviada correctamente. Recibirás una respuesta pronto.',
+      confirmButtonColor: '#1e40af',
+      timer: 3000,
+      showConfirmButton: false
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
@@ -53,12 +85,19 @@ const UserPortal = () => {
               <p className="text-blue-200 text-sm">Portal de Usuario</p>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="bg-white text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-2 font-semibold shadow-md"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Nueva Solicitud</span>
+              </button>
               <div className="text-right">
                 <p className="font-semibold">{user.name}</p>
                 <p className="text-blue-200 text-sm">{user.email}</p>
               </div>
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
                 title="Cerrar sesión"
               >
@@ -141,6 +180,13 @@ const UserPortal = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal de creación */}
+      <CreateSolicitudModalUser
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreate={handleCreateSolicitud}
+      />
     </div>
   );
 };

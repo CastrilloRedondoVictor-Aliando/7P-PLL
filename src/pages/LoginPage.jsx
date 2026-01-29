@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LogIn } from 'lucide-react';
+import { MOCK_USERS } from '../data/mockData';
 
 const LoginPage = ({ onLogin }) => {
   const [email, setEmail] = useState('');
@@ -14,6 +15,12 @@ const LoginPage = ({ onLogin }) => {
     if (!success) {
       setError('Email o contraseña incorrectos');
     }
+  };
+
+  const handleSelectUser = (user) => {
+    setEmail(user.email);
+    setPassword(user.password);
+    setError('');
   };
 
   return (
@@ -73,15 +80,33 @@ const LoginPage = ({ onLogin }) => {
         </form>
 
         <div className="mt-8 pt-6 border-t border-gray-200">
-          <p className="text-xs text-gray-500 text-center">
-            <strong>Usuarios de prueba:</strong>
+          <p className="text-xs font-semibold text-gray-700 text-center mb-3">
+            Usuarios de prueba:
           </p>
-          <p className="text-xs text-gray-500 text-center mt-2">
-            Usuario: user@external.com / user123
-          </p>
-          <p className="text-xs text-gray-500 text-center">
-            Admin: admin@perezllorca.com / admin123
-          </p>
+          <div className="space-y-2">
+            {MOCK_USERS.map(user => (
+              <div 
+                key={user.id} 
+                className="bg-gray-50 rounded-lg p-3 border border-gray-200 flex items-center justify-between"
+              >
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-gray-900">
+                    {user.email} <span className="text-gray-600">({user.name})</span>
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Contraseña: <span className="font-mono bg-gray-200 px-2 py-0.5 rounded">{user.password}</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleSelectUser(user)}
+                  className="ml-3 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded hover:bg-blue-700 transition-colors whitespace-nowrap"
+                >
+                  Seleccionar
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

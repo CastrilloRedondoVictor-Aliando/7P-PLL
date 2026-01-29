@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, Download, MessageSquare, Send, FileText, Calendar } from 'lucide-react';
+import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle } from 'lucide-react';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import { MOCK_USERS } from '../data/mockData';
 
@@ -12,15 +12,70 @@ const SolicitudDetail = ({
   currentUserId 
 }) => {
   const [newMessage, setNewMessage] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState([]);
   const fileInputRef = useRef(null);
   const estadoColors = getEstadoColor(solicitud.estado);
 
+  const handleFileSelect = (files) => {
+    if (files && files.length > 0) {
+      const newFiles = Array.from(files);
+      setPendingFiles(prev => [...prev, ...newFiles]);
+    }
+  };
+
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      onUploadDocument(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileSelect(files);
       e.target.value = ''; // Reset input
     }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleFileSelect(files);
+    }
+  };
+
+  const confirmUpload = () => {
+    if (pendingFiles.length > 0) {
+      pendingFiles.forEach(file => onUploadDocument(file));
+      setPendingFiles([]);
+    }
+  };
+
+  const removeFile = (index) => {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const cancelUpload = () => {
+    setPendingFiles([]);
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
   const handleSendMessage = () => {
@@ -66,27 +121,99 @@ const SolicitudDetail = ({
 
         {/* Documentos */}
         <div>
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-lg font-semibold text-gray-900">Documentos</h3>
-            <button
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">Documentos</h3>
+
+          {/* Zona de drag and drop */}
+          {pendingFiles.length === 0 ? (
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center space-x-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              className={`border-2 border-dashed rounded-lg p-8 mb-3 transition-all cursor-pointer ${
+                isDragging
+                  ? 'border-primary bg-blue-50'
+                  : 'border-gray-300 bg-gray-50 hover:border-primary hover:bg-blue-50'
+              }`}
             >
-              <Upload className="w-4 h-4" />
-              <span>Subir Documento</span>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              onChange={handleFileUpload}
-              className="hidden"
-              accept=".pdf,.doc,.docx,.xls,.xlsx"
-            />
-          </div>
+              <div className="text-center">
+                <Upload className={`w-12 h-12 mx-auto mb-3 ${isDragging ? 'text-primary' : 'text-gray-400'}`} />
+                <p className={`text-sm font-semibold mb-2 ${isDragging ? 'text-primary' : 'text-gray-700'}`}>
+                  {isDragging ? 'Suelta el archivo aquí' : 'Arrastra y suelta un archivo aquí'}
+                </p>
+                <p className="text-sm text-gray-600 mb-3">o haz clic para seleccionar</p>
+                <p className="text-xs text-gray-400 mt-3">
+                  Formatos permitidos: PDF, DOC, DOCX, XLS, XLSX
+                </p>
+              </div>
+            </div>
+          ) : (
+            /* Previsualización de archivos */
+            <div className="border-2 border-primary rounded-lg p-6 mb-3 bg-blue-50">
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">
+                {pendingFiles.length} archivo{pendingFiles.length !== 1 ? 's' : ''} seleccionado{pendingFiles.length !== 1 ? 's' : ''}
+              </h4>
+              <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
+                {pendingFiles.map((file, index) => (
+                  <div key={index} className="flex items-center space-x-3 bg-white p-3 rounded-lg">
+                    <FileText className="w-8 h-8 text-primary flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-900 font-medium truncate">
+                        {file.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {formatFileSize(file.size)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => removeFile(index)}
+                      className="flex-shrink-0 text-gray-400 hover:text-red-500 p-1 rounded transition-colors"
+                      title="Eliminar"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={confirmUpload}
+                  className="flex-1 flex items-center justify-center space-x-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  <span>Subir {pendingFiles.length} documento{pendingFiles.length !== 1 ? 's' : ''}</span>
+                </button>
+                <button
+                  onClick={cancelUpload}
+                  className="flex items-center justify-center space-x-2 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors font-semibold"
+                >
+                  <X className="w-5 h-5" />
+                  <span>Cancelar</span>
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center justify-center space-x-2 border-2 border-primary text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
+                >
+                  <Upload className="w-5 h-5" />
+                  <span>Agregar más</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Input file compartido */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileUpload}
+            className="hidden"
+            accept=".pdf,.doc,.docx,.xls,.xlsx"
+            multiple
+          />
 
           <div className="space-y-2">
             {documentos.length === 0 ? (
-              <p className="text-gray-500 text-center py-6 bg-gray-50 rounded-lg">
+              <p className="text-gray-500 text-center py-4 text-sm">
                 No hay documentos adjuntos
               </p>
             ) : (
