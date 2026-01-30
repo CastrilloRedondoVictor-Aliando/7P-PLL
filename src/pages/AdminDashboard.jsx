@@ -372,6 +372,9 @@ const AdminDashboard = () => {
                     Usuario
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Cargo
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Proyecto
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -391,7 +394,7 @@ const AdminDashboard = () => {
               <tbody className="divide-y divide-gray-200">
                 {filteredSolicitudes.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
                       No hay solicitudes
                     </td>
                   </tr>
@@ -411,6 +414,9 @@ const AdminDashboard = () => {
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {getUserName(solicitud.usuarioID)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {MOCK_USERS.find(u => u.id === solicitud.usuarioID)?.cargo || '-'}
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm font-medium text-gray-900">{solicitud.proyecto}</div>

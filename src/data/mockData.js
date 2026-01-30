@@ -6,6 +6,7 @@ export const MOCK_USERS = [
     email: 'user@external.com', 
     name: 'María García', 
     rol: 'user', 
+    cargo: 'Ingeniero Junior',
     estado: 'Activo',
     password: 'user123' 
   },
@@ -14,6 +15,7 @@ export const MOCK_USERS = [
     email: 'user2@external.com', 
     name: 'Juan Pérez', 
     rol: 'user', 
+    cargo: 'Project Engineer',
     estado: 'Activo',
     password: 'user123'
   },
@@ -22,6 +24,7 @@ export const MOCK_USERS = [
     email: 'admin@perezllorca.com', 
     name: 'Admin PLL', 
     rol: 'admin', 
+    cargo: 'Lead Engineer',
     estado: 'Activo',
     password: 'admin123'
   },
@@ -30,6 +33,7 @@ export const MOCK_USERS = [
     email: 'admin2@perezllorca.com', 
     name: 'Carlos Martínez', 
     rol: 'admin', 
+    cargo: 'Engineering Manager',
     estado: 'Activo',
     password: 'admin123'
   }
