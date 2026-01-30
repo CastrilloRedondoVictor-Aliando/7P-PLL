@@ -3,11 +3,10 @@ import { LogOut, Search, CheckCircle, XCircle, AlertCircle, BarChart3, Send, Plu
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, getEstadoColor } from '../utils/helpers';
-import { MOCK_USERS } from '../data/mockData';
 import CreateSolicitudModal from '../components/CreateSolicitudModal';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, logout, updateSolicitudEstado, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterUsuario, setFilterUsuario] = useState('Todos');
@@ -19,8 +18,7 @@ const AdminDashboard = () => {
 
   // Contar mensajes no leídos de usuarios
   const unreadMessages = mensajes.filter(m => {
-    const isUserMessage = MOCK_USERS.find(u => u.id === m.usuarioID)?.rol === 'user';
-    return isUserMessage && !m.leido && m.usuarioID !== user.id;
+    return m.rol === 'user' && !m.leido && m.usuarioID !== user.id;
   }).length;
 
   // Obtener solicitudes con mensajes sin leer
@@ -29,7 +27,7 @@ const AdminDashboard = () => {
       m.solicitudID === s.id && 
       !m.leido && 
       m.usuarioID !== user.id &&
-      MOCK_USERS.find(u => u.id === m.usuarioID)?.rol === 'user'
+      m.rol === 'user'
     );
     return hasUnreadMessages;
   });
@@ -66,8 +64,8 @@ const AdminDashboard = () => {
   };
 
   const getUserName = (userId) => {
-    const foundUser = MOCK_USERS.find(u => u.id === userId);
-    return foundUser ? foundUser.name : 'Usuario desconocido';
+    const solicitud = solicitudes.find(s => s.usuarioID === userId);
+    return solicitud?.usuarioNombre || 'Usuario desconocido';
   };
 
   const solicitudDocumentos = selectedSolicitud
@@ -101,13 +99,12 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleCreateSolicitud = (usuarioID, proyecto, comentarios) => {
-    createSolicitud(usuarioID, proyecto, comentarios);
-    const usuario = MOCK_USERS.find(u => u.id === usuarioID);
+  const handleCreateSolicitud = async (usuarioID, proyecto, comentarios) => {
+    const newSolicitud = await createSolicitud(usuarioID, proyecto, comentarios);
     Swal.fire({
       icon: 'success',
       title: '¡Solicitud creada!',
-      text: `Solicitud creada exitosamente para ${usuario?.name || 'el usuario'}`,
+      text: `Solicitud creada exitosamente para ${newSolicitud?.usuarioNombre || 'el usuario'}`,
       confirmButtonColor: '#1e40af',
       timer: 3000,
       showConfirmButton: false
@@ -120,6 +117,17 @@ const AdminDashboard = () => {
       setNewMessage('');
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Cargando datos...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -169,12 +177,10 @@ const AdminDashboard = () => {
                     ) : (
                       solicitudesWithUnreadMessages.map(sol => {
                         const unreadCount = mensajes.filter(m => {
-                          const message = MOCK_USERS.find(u => u.id === m.usuarioID);
                           return m.solicitudID === sol.id && 
                             !m.leido && 
-                            message?.rol === 'user';
+                            m.rol === 'user';
                         }).length;
-                        const usuario = MOCK_USERS.find(u => u.id === sol.usuarioID);
                         return (
                           <div
                             key={sol.id}
@@ -187,7 +193,7 @@ const AdminDashboard = () => {
                             <div className="flex justify-between items-start">
                               <div className="flex-1">
                                 <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
-                                <p className="text-xs text-gray-600 mt-1">{usuario?.name}</p>
+                                <p className="text-xs text-gray-600 mt-1">{sol.usuarioNombre}</p>
                               </div>
                               <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
                                 {unreadCount}
@@ -232,7 +238,7 @@ const AdminDashboard = () => {
                         const recentDocs = documentos.filter(d => 
                           d.solicitudID === sol.id && !d.vistoPorAdmin
                         );
-                        const usuario = MOCK_USERS.find(u => u.id === sol.usuarioID);
+
                         return (
                           <div
                             key={sol.id}
@@ -246,7 +252,7 @@ const AdminDashboard = () => {
                             <div className="flex justify-between items-start">
                               <div className="flex-1">
                                 <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
-                                <p className="text-xs text-gray-600 mt-1">{usuario?.name}</p>
+                                <p className="text-xs text-gray-600 mt-1">{sol.usuarioNombre}</p>
                                 <p className="text-xs text-gray-500 mt-1">{recentDocs.length} documento{recentDocs.length !== 1 ? 's' : ''} nuevo{recentDocs.length !== 1 ? 's' : ''}</p>
                               </div>
                             </div>
@@ -327,11 +333,16 @@ const AdminDashboard = () => {
               className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
             >
               <option value="Todos">Todos los usuarios</option>
-              {MOCK_USERS.filter(u => u.rol === 'user').map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.email})
-                </option>
-              ))}
+              {solicitudes
+                .map(s => ({ id: s.usuarioID, nombre: s.usuarioNombre, email: s.usuarioEmail }))
+                .filter((user, index, self) => 
+                  index === self.findIndex(u => u.id === user.id)
+                )
+                .map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.nombre} ({u.email})
+                  </option>
+                ))}
             </select>
 
             <select
@@ -416,7 +427,7 @@ const AdminDashboard = () => {
                           {getUserName(solicitud.usuarioID)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
-                          {MOCK_USERS.find(u => u.id === solicitud.usuarioID)?.cargo || '-'}
+                          {solicitud.cargo || '-'}
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm font-medium text-gray-900">{solicitud.proyecto}</div>

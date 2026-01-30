@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { AuthContext } from './AuthContextDefinition';
-import { MOCK_USERS, MOCK_SOLICITUDES, MOCK_DOCUMENTOS, MOCK_MENSAJES } from '../data/mockData';
+import { apiRequest } from '../config/api';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
@@ -9,9 +9,10 @@ export const AuthProvider = ({ children }) => {
     const savedUser = localStorage.getItem('user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
-  const [solicitudes, setSolicitudes] = useState(MOCK_SOLICITUDES);
-  const [documentos, setDocumentos] = useState(MOCK_DOCUMENTOS);
-  const [mensajes, setMensajes] = useState(MOCK_MENSAJES);
+  const [solicitudes, setSolicitudes] = useState([]);
+  const [documentos, setDocumentos] = useState([]);
+  const [mensajes, setMensajes] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Sincronizar con localStorage cuando cambie el usuario
   useEffect(() => {
@@ -22,34 +23,82 @@ export const AuthProvider = ({ children }) => {
     }
   }, [user]);
 
-  const login = (email, password) => {
-    const foundUser = MOCK_USERS.find(
-      u => u.email === email && u.password === password
-    );
-    
-    if (foundUser) {
-      const { password: _password, ...userWithoutPassword } = foundUser;
-      setUser(userWithoutPassword);
-      return true;
+  // Cargar datos cuando el usuario inicie sesión
+  useEffect(() => {
+    if (user) {
+      loadData();
+    } else {
+      setLoading(false);
     }
-    return false;
+  }, [user]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Cargar solicitudes
+      const queryParams = user.rol === 'user' 
+        ? `?usuarioID=${user.id}&rol=user` 
+        : '';
+      const solicitudesData = await apiRequest(`/solicitudes${queryParams}`);
+      setSolicitudes(solicitudesData);
+
+      // Cargar documentos
+      const documentosData = await apiRequest('/documentos');
+      setDocumentos(documentosData);
+
+      // Cargar mensajes
+      const mensajesData = await apiRequest('/mensajes');
+      setMensajes(mensajesData);
+    } catch (error) {
+      console.error('Error cargando datos:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudieron cargar los datos',
+        confirmButtonColor: '#1e40af'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const login = async (email, password) => {
+    try {
+      const data = await apiRequest('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
+      
+      setUser(data.user);
+      return true;
+    } catch (error) {
+      console.error('Error en login:', error);
+      return false;
+    }
   };
 
   const logout = () => {
     setUser(null);
   };
 
-  const uploadDocument = (solicitudID, file) => {
-    setDocumentos(prevDocumentos => {
-      const newDocument = {
-        id: prevDocumentos.length + 1,
-        solicitudID,
-        nombreArchivo: file.name,
-        urlBlob: '#',
-        tamaño: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-        fechaCarga: new Date().toISOString(),
-        vistoPorAdmin: false
-      };
+  const uploadDocument = async (solicitudID, file) => {
+    // Por ahora simulamos la subida
+    const newDocument = {
+      solicitudID,
+      nombre: file.name,
+      tipo: file.type,
+      url: '#',
+      vistoPorAdmin: false
+    };
+
+    try {
+      const data = await apiRequest('/documentos', {
+        method: 'POST',
+        body: JSON.stringify(newDocument)
+      });
+      
+      setDocumentos(prevDocumentos => [...prevDocumentos, data]);
       
       Swal.fire({
         icon: 'success',
@@ -59,89 +108,164 @@ export const AuthProvider = ({ children }) => {
         timer: 2000,
         showConfirmButton: false
       });
-      
-      return [...prevDocumentos, newDocument];
-    });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo subir el documento',
+        confirmButtonColor: '#1e40af'
+      });
+      console.error('Error subiendo documento:', error);
+    }
   };
 
-  const sendMessage = (solicitudID, contenido) => {
+  const sendMessage = async (solicitudID, contenido) => {
     const newMessage = {
-      id: mensajes.length + 1,
       solicitudID,
       usuarioID: user.id,
-      contenido,
-      fechaEnvio: new Date().toISOString(),
-      leido: false
+      texto: contenido,
+      rol: user.rol
     };
-    setMensajes([...mensajes, newMessage]);
+
+    try {
+      const data = await apiRequest('/mensajes', {
+        method: 'POST',
+        body: JSON.stringify(newMessage)
+      });
+      
+      setMensajes([...mensajes, data]);
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo enviar el mensaje',
+        confirmButtonColor: '#1e40af'
+      });
+      console.error('Error subiendo documento:', error);
+    }
   };
 
-  const updateSolicitudEstado = (solicitudID, nuevoEstado) => {
-    setSolicitudes(prev => 
-      prev.map(sol => 
-        sol.id === solicitudID 
-          ? { ...sol, estado: nuevoEstado, fechaActualizacion: new Date().toISOString() }
-          : sol
-      )
-    );
-    
-    const estadoTexto = {
-      'Aceptada': '¡Solicitud aceptada!',
-      'Rechazada': 'Solicitud rechazada',
-      'Requiere más información': 'Se requiere más información',
-      'Pendiente de revisión': 'Estado actualizado'
-    };
-    
-    const estadoIcono = {
-      'Aceptada': 'success',
-      'Rechazada': 'error',
-      'Requiere más información': 'warning',
-      'Pendiente de revisión': 'info'
-    };
-    
-    Swal.fire({
-      icon: estadoIcono[nuevoEstado] || 'info',
-      title: estadoTexto[nuevoEstado] || 'Estado actualizado',
-      text: `El estado de la solicitud ha sido cambiado a: ${nuevoEstado}`,
-      confirmButtonColor: '#1e40af',
-      timer: 3000,
-      showConfirmButton: false
-    });
+  const updateSolicitudEstado = async (solicitudID, nuevoEstado) => {
+    try {
+      const solicitud = solicitudes.find(s => s.id === solicitudID);
+      
+      const data = await apiRequest(`/solicitudes/${solicitudID}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...solicitud,
+          estado: nuevoEstado
+        })
+      });
+      
+      setSolicitudes(prev => 
+        prev.map(sol => 
+          sol.id === solicitudID ? data : sol
+        )
+      );
+      
+      const estadoTexto = {
+        'Aceptada': '¡Solicitud aceptada!',
+        'Rechazada': 'Solicitud rechazada',
+        'Requiere más información': 'Se requiere más información',
+        'Pendiente de revisión': 'Estado actualizado'
+      };
+      
+      const estadoIcono = {
+        'Aceptada': 'success',
+        'Rechazada': 'error',
+        'Requiere más información': 'warning',
+        'Pendiente de revisión': 'info'
+      };
+      
+      Swal.fire({
+        icon: estadoIcono[nuevoEstado] || 'info',
+        title: estadoTexto[nuevoEstado] || 'Estado actualizado',
+        text: `El estado de la solicitud ha sido cambiado a: ${nuevoEstado}`,
+        confirmButtonColor: '#1e40af',
+        timer: 3000,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo actualizar el estado',
+        confirmButtonColor: '#1e40af'
+      });
+      console.error('Error subiendo documento:', error);
+    }
   };
 
-  const createSolicitud = (usuarioID, proyecto, comentarios) => {
-    const newSolicitud = {
-      id: solicitudes.length + 1,
-      usuarioID,
-      adminID: null, // Se asignará cuando un admin la tome
-      proyecto,
-      comentarios,
-      estado: 'Pendiente de revisión',
-      fechaCreacion: new Date().toISOString(),
-      fechaActualizacion: new Date().toISOString()
-    };
-    setSolicitudes([...solicitudes, newSolicitud]);
-    return newSolicitud;
+  const createSolicitud = async (usuarioID, proyecto, comentarios) => {
+    try {
+      const data = await apiRequest('/solicitudes', {
+        method: 'POST',
+        body: JSON.stringify({
+          usuarioID,
+          titulo: proyecto,
+          descripcion: comentarios
+        })
+      });
+      
+      setSolicitudes([...solicitudes, data]);
+      return data;
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo crear la solicitud',
+        confirmButtonColor: '#1e40af'
+      });
+      throw error;
+    }
   };
 
-  const markMessagesAsRead = (solicitudID) => {
-    setMensajes(prev => 
-      prev.map(msg => 
-        msg.solicitudID === solicitudID && msg.usuarioID !== user.id
-          ? { ...msg, leido: true }
-          : msg
-      )
-    );
+  const markMessagesAsRead = async (solicitudID) => {
+    try {
+      await apiRequest('/mensajes/mark-read', {
+        method: 'POST',
+        body: JSON.stringify({ solicitudID })
+      });
+      
+      setMensajes(prev => 
+        prev.map(msg => 
+          msg.solicitudID === solicitudID && msg.usuarioID !== user.id
+            ? { ...msg, leido: true }
+            : msg
+        )
+      );
+    } catch (error) {
+      console.error('Error marcando mensajes como leídos:', error);
+    }
   };
 
-  const markDocsAsViewed = (solicitudID) => {
-    setDocumentos(prev =>
-      prev.map(doc =>
-        doc.solicitudID === solicitudID
-          ? { ...doc, vistoPorAdmin: true }
-          : doc
-      )
-    );
+  const markDocsAsViewed = async (solicitudID) => {
+    try {
+      await apiRequest('/documentos/mark-viewed', {
+        method: 'POST',
+        body: JSON.stringify({ solicitudID })
+      });
+      
+      setDocumentos(prev =>
+        prev.map(doc =>
+          doc.solicitudID === solicitudID
+            ? { ...doc, vistoPorAdmin: true }
+            : doc
+        )
+      );
+    } catch (error) {
+      console.error('Error marcando documentos como vistos:', error);
+    }
+  };
+
+  const getUsers = async () => {
+    try {
+      const data = await apiRequest('/auth/users');
+      return data;
+    } catch (error) {
+      console.error('Error obteniendo usuarios:', error);
+      return [];
+    }
   };
 
   const value = {
@@ -149,6 +273,7 @@ export const AuthProvider = ({ children }) => {
     solicitudes,
     documentos,
     mensajes,
+    loading,
     login,
     logout,
     uploadDocument,
@@ -156,7 +281,9 @@ export const AuthProvider = ({ children }) => {
     updateSolicitudEstado,
     createSolicitud,
     markMessagesAsRead,
-    markDocsAsViewed
+    markDocsAsViewed,
+    loadData,
+    getUsers
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

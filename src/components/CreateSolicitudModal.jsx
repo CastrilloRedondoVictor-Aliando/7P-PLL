@@ -1,19 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { XCircle, Plus, Search } from 'lucide-react';
-import { MOCK_USERS } from '../data/mockData';
+import { useAuth } from '../hooks/useAuth';
 
 const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
+  const { getUsers } = useAuth();
   const [formData, setFormData] = useState({
     usuarioID: '',
     proyecto: '',
     comentarios: ''
   });
   const [searchUser, setSearchUser] = useState('');
+  const [users, setUsers] = useState([]);
 
-  const externalUsers = MOCK_USERS.filter(u => u.rol === 'user');
-  
-  const filteredUsers = externalUsers.filter(user => 
-    user.name.toLowerCase().includes(searchUser.toLowerCase()) ||
+  useEffect(() => {
+    const loadUsers = async () => {
+      if (isOpen) {
+        try {
+          const userData = await getUsers();
+          setUsers(userData.filter(u => u.rol === 'user'));
+        } catch (error) {
+          console.error('Error cargando usuarios:', error);
+          setUsers([]);
+        }
+      }
+    };
+    
+    loadUsers();
+  }, [isOpen, getUsers]);
+
+  const filteredUsers = users.filter(user => 
+    user.nombre.toLowerCase().includes(searchUser.toLowerCase()) ||
     user.email.toLowerCase().includes(searchUser.toLowerCase())
   );
 
@@ -82,7 +98,7 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
                       formData.usuarioID === user.id.toString() ? 'bg-blue-100 border-l-4 border-primary' : ''
                     }`}
                   >
-                    <p className="font-semibold text-gray-900">{user.name}</p>
+                    <p className="font-semibold text-gray-900">{user.nombre}</p>
                     <p className="text-sm text-gray-600">{user.email}</p>
                   </div>
                 ))

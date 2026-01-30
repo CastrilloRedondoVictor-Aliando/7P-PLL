@@ -1,19 +1,35 @@
 import { useState } from 'react';
 import { LogIn } from 'lucide-react';
-import { MOCK_USERS } from '../data/mockData';
 
 const LoginPage = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  // Usuarios de prueba
+  const DEMO_USERS = [
+    { email: 'admin@7p-pll.com', password: 'password123', nombre: 'Admin User', rol: 'admin' },
+    { email: 'victor@7p-pll.com', password: 'password123', nombre: 'Victor Castrillo', rol: 'user' },
+    { email: 'maria@7p-pll.com', password: 'password123', nombre: 'Maria Rodriguez', rol: 'user' },
+    { email: 'carlos@7p-pll.com', password: 'password123', nombre: 'Carlos Gomez', rol: 'user' }
+  ];
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     
-    const success = onLogin(email, password);
-    if (!success) {
-      setError('Email o contraseña incorrectos');
+    try {
+      const success = await onLogin(email, password);
+      if (!success) {
+        setError('Email o contraseña incorrectos');
+      }
+    } catch (err) {
+      setError('Error al iniciar sesión. Por favor, intenta de nuevo.');
+      console.error('Error en login:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -73,9 +89,10 @@ const LoginPage = ({ onLogin }) => {
 
           <button
             type="submit"
-            className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-md"
+            disabled={loading}
+            className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Iniciar Sesión
+            {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </button>
         </form>
 
@@ -84,14 +101,14 @@ const LoginPage = ({ onLogin }) => {
             Usuarios de prueba:
           </p>
           <div className="space-y-2">
-            {MOCK_USERS.map(user => (
+            {DEMO_USERS.map((user, index) => (
               <div 
-                key={user.id} 
+                key={index} 
                 className="bg-gray-50 rounded-lg p-3 border border-gray-200 flex items-center justify-between"
               >
                 <div className="flex-1">
                   <p className="text-xs font-medium text-gray-900">
-                    {user.email} <span className="text-gray-600">({user.name})</span>
+                    {user.email} <span className="text-gray-600">({user.nombre})</span>
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     Contraseña: <span className="font-mono bg-gray-200 px-2 py-0.5 rounded">{user.password}</span>
@@ -100,7 +117,8 @@ const LoginPage = ({ onLogin }) => {
                 <button
                   type="button"
                   onClick={() => handleSelectUser(user)}
-                  className="ml-3 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded hover:bg-blue-700 transition-colors whitespace-nowrap"
+                  disabled={loading}
+                  className="ml-3 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded hover:bg-blue-700 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Seleccionar
                 </button>
