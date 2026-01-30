@@ -1,0 +1,9 @@
+# Azure Developer CLI configuration
+name: 7p-pll
+metadata:
+  template: 7p-pll@0.0.1
+services:
+  api:
+    project: ./api
+    language: js
+    host: appservice

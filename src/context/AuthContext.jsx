@@ -141,18 +141,15 @@ export const AuthProvider = ({ children }) => {
         text: 'No se pudo enviar el mensaje',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error subiendo documento:', error);
+      console.error('Error enviando mensaje:', error);
     }
   };
 
   const updateSolicitudEstado = async (solicitudID, nuevoEstado) => {
     try {
-      const solicitud = solicitudes.find(s => s.id === solicitudID);
-      
       const data = await apiRequest(`/solicitudes/${solicitudID}`, {
         method: 'PUT',
         body: JSON.stringify({
-          ...solicitud,
           estado: nuevoEstado
         })
       });
@@ -164,17 +161,17 @@ export const AuthProvider = ({ children }) => {
       );
       
       const estadoTexto = {
-        'Aceptada': '¡Solicitud aceptada!',
+        'Completada': '¡Solicitud completada!',
+        'En Proceso': 'Solicitud en proceso',
         'Rechazada': 'Solicitud rechazada',
-        'Requiere más información': 'Se requiere más información',
-        'Pendiente de revisión': 'Estado actualizado'
+        'Pendiente': 'Estado actualizado'
       };
       
       const estadoIcono = {
-        'Aceptada': 'success',
+        'Completada': 'success',
         'Rechazada': 'error',
-        'Requiere más información': 'warning',
-        'Pendiente de revisión': 'info'
+        'En Proceso': 'info',
+        'Pendiente': 'warning'
       };
       
       Swal.fire({
@@ -192,7 +189,7 @@ export const AuthProvider = ({ children }) => {
         text: 'No se pudo actualizar el estado',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error subiendo documento:', error);
+      console.error('Error actualizando estado:', error);
     }
   };
 

@@ -6,6 +6,7 @@ export const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   
   const config = {
+    credentials: 'include', // Importante para CORS con credenciales
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -17,8 +18,8 @@ export const apiRequest = async (endpoint, options = {}) => {
     const response = await fetch(url, config);
     
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Error en la petición');
+      const error = await response.json().catch(() => ({ error: 'Error en la petición' }));
+      throw new Error(error.error || `Error ${response.status}: ${response.statusText}`);
     }
     
     return await response.json();
