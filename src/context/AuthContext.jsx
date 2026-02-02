@@ -146,14 +146,22 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateSolicitudEstado = async (solicitudID, nuevoEstado) => {
+    const solicitudActual = solicitudes.find(s => s.id === solicitudID);
+    
+    if (!solicitudActual) {
+      throw new Error('Solicitud no encontrada');
+    }
+
     try {
       const data = await apiRequest(`/solicitudes/${solicitudID}`, {
         method: 'PUT',
         body: JSON.stringify({
+          titulo: solicitudActual.titulo,
+          descripcion: solicitudActual.descripcion,
           estado: nuevoEstado
         })
       });
-      
+
       setSolicitudes(prev => 
         prev.map(sol => 
           sol.id === solicitudID ? data : sol
