@@ -210,10 +210,10 @@ const UserPortal = () => {
                 className="w-full mb-4 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
               >
                 <option value="Todos">Todos los estados</option>
-                <option value="Pendiente de revisión">Pendiente de revisión</option>
-                <option value="Aceptada">Aceptada</option>
+                <option value="Pendiente">Pendiente</option>
+                <option value="En Proceso">En Proceso</option>
+                <option value="Completada">Completada</option>
                 <option value="Rechazada">Rechazada</option>
-                <option value="Requiere más información">Requiere más información</option>
               </select>
 
               {/* Lista de Solicitudes */}

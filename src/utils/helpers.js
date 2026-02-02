@@ -22,10 +22,10 @@ export const formatDateShort = (dateString) => {
 
 export const getEstadoColor = (estado) => {
   const colores = {
-    'Pendiente de revisión': { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-500' },
-    'Aceptada': { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-500' },
-    'Rechazada': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-500' },
-    'Requiere más información': { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-500' }
+    'Pendiente': { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-500' },
+    'En Proceso': { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-500' },
+    'Completada': { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-500' },
+    'Rechazada': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-500' }
   };
   return colores[estado] || { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-500' };
 };

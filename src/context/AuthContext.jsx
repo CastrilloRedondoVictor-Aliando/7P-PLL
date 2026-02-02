@@ -164,7 +164,7 @@ export const AuthProvider = ({ children }) => {
         'Completada': '¡Solicitud completada!',
         'En Proceso': 'Solicitud en proceso',
         'Rechazada': 'Solicitud rechazada',
-        'Pendiente': 'Estado actualizado'
+        'Pendiente': 'Solicitud pendiente'
       };
       
       const estadoIcono = {
@@ -203,6 +203,21 @@ export const AuthProvider = ({ children }) => {
           descripcion: comentarios
         })
       });
+      
+      // Enriquecer la solicitud con datos del usuario si no los incluye el backend
+      if (!data.usuarioNombre || !data.cargo) {
+        try {
+          const usuarios = await apiRequest('/auth/users');
+          const usuario = usuarios.find(u => u.id === usuarioID);
+          if (usuario) {
+            data.usuarioNombre = data.usuarioNombre || usuario.nombre;
+            data.usuarioApellidos = data.usuarioApellidos || usuario.apellidos;
+            data.cargo = data.cargo || usuario.cargo;
+          }
+        } catch (error) {
+          console.error('Error obteniendo datos del usuario:', error);
+        }
+      }
       
       setSolicitudes([...solicitudes, data]);
       return data;

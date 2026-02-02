@@ -46,7 +46,7 @@ export const MOCK_SOLICITUDES = [
     adminID: 3,
     proyecto: 'Proyecto Alpha',
     comentarios: 'Necesito revisar los contratos del proyecto Alpha para poder avanzar con la siguiente fase.',
-    estado: 'Pendiente de revisión',
+    estado: 'Pendiente',
     fechaCreacion: '2026-01-15T14:30:00',
     fechaActualizacion: '2026-01-20T10:30:00'
   },
@@ -56,7 +56,7 @@ export const MOCK_SOLICITUDES = [
     adminID: 3,
     proyecto: 'Proyecto Beta',
     comentarios: 'Solicitud urgente para documentación fiscal del Q4 2025.',
-    estado: 'Aceptada',
+    estado: 'Completada',
     fechaCreacion: '2026-01-22T09:00:00',
     fechaActualizacion: '2026-01-22T09:15:00'
   },
@@ -66,7 +66,7 @@ export const MOCK_SOLICITUDES = [
     adminID: 4,
     proyecto: 'Proyecto Gamma',
     comentarios: 'Requiero información sobre compliance y regulaciones.',
-    estado: 'Requiere más información',
+    estado: 'En Proceso',
     fechaCreacion: '2026-01-18T16:00:00',
     fechaActualizacion: '2026-01-18T16:30:00'
   },

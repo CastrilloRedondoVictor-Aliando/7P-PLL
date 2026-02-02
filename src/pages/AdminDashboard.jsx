@@ -54,8 +54,9 @@ const AdminDashboard = () => {
   // Estadísticas
   const stats = {
     total: solicitudes.length,
-    pendientes: solicitudes.filter(s => s.estado === 'Pendiente de revisión').length,
-    aceptadas: solicitudes.filter(s => s.estado === 'Aceptada').length,
+    pendientes: solicitudes.filter(s => s.estado === 'Pendiente').length,
+    enProceso: solicitudes.filter(s => s.estado === 'En Proceso').length,
+    completadas: solicitudes.filter(s => s.estado === 'Completada').length,
     rechazadas: solicitudes.filter(s => s.estado === 'Rechazada').length,
   };
 
@@ -306,8 +307,18 @@ const AdminDashboard = () => {
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Aceptadas</p>
-                <p className="text-3xl font-bold text-green-600">{stats.aceptadas}</p>
+                <p className="text-gray-600 text-sm">En Proceso</p>
+                <p className="text-3xl font-bold text-blue-600">{stats.enProceso}</p>
+              </div>
+              <AlertCircle className="w-12 h-12 text-blue-600 opacity-20" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm">Completadas</p>
+                <p className="text-3xl font-bold text-green-600">{stats.completadas}</p>
               </div>
               <CheckCircle className="w-12 h-12 text-green-600 opacity-20" />
             </div>
@@ -351,10 +362,10 @@ const AdminDashboard = () => {
               className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
             >
               <option value="Todos">Todos los estados</option>
-              <option value="Pendiente de revisión">Pendiente de revisión</option>
-              <option value="Aceptada">Aceptada</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="En Proceso">En Proceso</option>
+              <option value="Completada">Completada</option>
               <option value="Rechazada">Rechazada</option>
-              <option value="Requiere más información">Requiere más información</option>
             </select>
 
             <div className="relative">
@@ -456,10 +467,10 @@ const AdminDashboard = () => {
                             className="text-sm px-2 py-1 border border-gray-200 rounded focus:outline-none focus:border-primary"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <option value="Pendiente de revisión">Pendiente</option>
-                            <option value="Aceptada">Aceptar</option>
-                            <option value="Rechazada">Rechazar</option>
-                            <option value="Requiere más información">Más info</option>
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="En Proceso">En Proceso</option>
+                            <option value="Completada">Completada</option>
+                            <option value="Rechazada">Rechazada</option>
                           </select>
                         </td>
                       </tr>
