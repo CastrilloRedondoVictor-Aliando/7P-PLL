@@ -127,7 +127,7 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
 
           <div>
             <label htmlFor="comentarios" className="block text-sm font-semibold text-gray-700 mb-2">
-              Descripción / Comentarios *
+              Principales funciones realizadas *
             </label>
             <textarea
               id="comentarios"

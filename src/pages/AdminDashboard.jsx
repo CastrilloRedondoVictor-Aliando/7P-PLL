@@ -501,7 +501,7 @@ const AdminDashboard = () => {
 
               <div className="p-6 space-y-6">
                 <div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Descripción</h4>
+                  <h4 className="font-semibold text-gray-900 mb-2">Principales funciones realizadas</h4>
                   <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">{selectedSolicitud.comentarios}</p>
                 </div>
 

@@ -115,7 +115,7 @@ const SolicitudDetail = ({
       <div className="p-6 space-y-6">
         {/* Comentarios */}
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Descripción</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Principales funciones realizadas</h3>
           <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">{solicitud.comentarios}</p>
         </div>
 
@@ -143,7 +143,7 @@ const SolicitudDetail = ({
                 </p>
                 <p className="text-sm text-gray-600 mb-3">o haz clic para seleccionar</p>
                 <p className="text-xs text-gray-400 mt-3">
-                  Formatos permitidos: PDF, DOC, DOCX, XLS, XLSX
+                  Formatos permitidos: PDF, DOC, DOCX, XLS, XLSX, TXT, CSV, PPT , PPTX y más.
                 </p>
               </div>
             </div>
@@ -207,7 +207,7 @@ const SolicitudDetail = ({
             type="file"
             onChange={handleFileUpload}
             className="hidden"
-            accept=".pdf,.doc,.docx,.xls,.xlsx"
+            accept="*"
             multiple
           />
 
