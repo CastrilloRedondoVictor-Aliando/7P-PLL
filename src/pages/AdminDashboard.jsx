@@ -56,7 +56,7 @@ const AdminDashboard = () => {
     total: solicitudes.length,
     pendientes: solicitudes.filter(s => s.estado === 'Pendiente').length,
     enProceso: solicitudes.filter(s => s.estado === 'En Proceso').length,
-    completadas: solicitudes.filter(s => s.estado === 'Completada').length,
+    completadas: solicitudes.filter(s => s.estado === 'Aceptada').length,
     rechazadas: solicitudes.filter(s => s.estado === 'Rechazada').length,
   };
 
@@ -317,7 +317,7 @@ const AdminDashboard = () => {
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Completadas</p>
+                <p className="text-gray-600 text-sm">Aceptadas</p>
                 <p className="text-3xl font-bold text-green-600">{stats.completadas}</p>
               </div>
               <CheckCircle className="w-12 h-12 text-green-600 opacity-20" />
@@ -364,7 +364,7 @@ const AdminDashboard = () => {
               <option value="Todos">Todos los estados</option>
               <option value="Pendiente">Pendiente</option>
               <option value="En Proceso">En Proceso</option>
-              <option value="Completada">Completada</option>
+              <option value="Aceptada">Aceptada</option>
               <option value="Rechazada">Rechazada</option>
             </select>
 
@@ -469,7 +469,7 @@ const AdminDashboard = () => {
                           >
                             <option value="Pendiente">Pendiente</option>
                             <option value="En Proceso">En Proceso</option>
-                            <option value="Completada">Completada</option>
+                            <option value="Aceptada">Aceptada</option>
                             <option value="Rechazada">Rechazada</option>
                           </select>
                         </td>

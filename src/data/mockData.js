@@ -56,7 +56,7 @@ export const MOCK_SOLICITUDES = [
     adminID: 3,
     proyecto: 'Proyecto Beta',
     comentarios: 'Solicitud urgente para documentación fiscal del Q4 2025.',
-    estado: 'Completada',
+    estado: 'Aceptada',
     fechaCreacion: '2026-01-22T09:00:00',
     fechaActualizacion: '2026-01-22T09:15:00'
   },

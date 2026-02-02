@@ -169,14 +169,14 @@ export const AuthProvider = ({ children }) => {
       );
       
       const estadoTexto = {
-        'Completada': '¡Solicitud completada!',
+        'Aceptada': '¡Solicitud aceptada!',
         'En Proceso': 'Solicitud en proceso',
         'Rechazada': 'Solicitud rechazada',
         'Pendiente': 'Solicitud pendiente'
       };
       
       const estadoIcono = {
-        'Completada': 'success',
+        'Aceptada': 'success',
         'Rechazada': 'error',
         'En Proceso': 'info',
         'Pendiente': 'warning'

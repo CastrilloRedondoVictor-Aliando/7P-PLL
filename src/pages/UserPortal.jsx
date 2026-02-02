@@ -212,7 +212,7 @@ const UserPortal = () => {
                 <option value="Todos">Todos los estados</option>
                 <option value="Pendiente">Pendiente</option>
                 <option value="En Proceso">En Proceso</option>
-                <option value="Completada">Completada</option>
+                <option value="Aceptada">Aceptada</option>
                 <option value="Rechazada">Rechazada</option>
               </select>
 
