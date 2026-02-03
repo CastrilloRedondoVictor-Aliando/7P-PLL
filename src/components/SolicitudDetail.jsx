@@ -20,7 +20,6 @@ const SolicitudDetail = ({
   const [nuevaDescripcion, setNuevaDescripcion] = useState('');
   const [usuarios, setUsuarios] = useState([]);
   const [selectedCategoria, setSelectedCategoria] = useState('General');
-  const [filtroCategoria, setFiltroCategoria] = useState('Todas');
   const fileInputRef = useRef(null);
   const estadoColors = getEstadoColor(solicitud.estado);
 
@@ -302,55 +301,149 @@ const SolicitudDetail = ({
             multiple
           />
 
-          {/* Filtro de categoría */}
-          <div className="mb-3">
-            <select
-              value={filtroCategoria}
-              onChange={(e) => setFiltroCategoria(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary bg-white"
-            >
-              <option value="Todas">Todas las categorías</option>
-              {categorias.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            {documentos.filter(doc => filtroCategoria === 'Todas' || doc.categoria === filtroCategoria).length === 0 ? (
-              <p className="text-gray-500 text-center py-4 text-sm">
-                No hay documentos {filtroCategoria !== 'Todas' ? `en la categoría "${filtroCategoria}"` : 'adjuntos'}
-              </p>
-            ) : (
-              documentos
-                .filter(doc => filtroCategoria === 'Todas' || doc.categoria === filtroCategoria)
-                .map(doc => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <FileText className="w-5 h-5 text-primary" />
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <p className="font-medium text-gray-900">{doc.nombreArchivo}</p>
-                        {doc.categoria && (
-                          <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">
-                            {doc.categoria}
-                          </span>
-                        )}
+          {/* Secciones de documentos por categoría */}
+          <div className="space-y-6">
+            {/* Principales funciones */}
+            <div>
+              <div className="flex items-center space-x-2 mb-3">
+                <FileText className="w-5 h-5 text-primary" />
+                <h4 className="text-md font-semibold text-gray-900">Principales funciones</h4>
+              </div>
+              <div className="space-y-2">
+                {documentos.filter(doc => doc.categoria === 'General').length === 0 ? (
+                  <p className="text-gray-500 text-sm py-2 pl-7">
+                    No hay documentos en esta categoría
+                  </p>
+                ) : (
+                  documentos
+                    .filter(doc => doc.categoria === 'General')
+                    .map(doc => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <FileText className="w-5 h-5 text-primary flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={doc.url}
+                              className="text-sm font-medium text-gray-900 hover:text-primary truncate block"
+                            >
+                              {doc.nombre}
+                            </a>
+                            <span className="text-xs text-gray-500 block mt-1">
+                              {formatDate(doc.fechaSubida)}
+                            </span>
+                          </div>
+                        </div>
+                        <a
+                          href={doc.url}
+                          className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                          title="Descargar"
+                        >
+                          <Download className="w-5 h-5" />
+                        </a>
                       </div>
-                      <p className="text-xs text-gray-500">
-                        {doc.tamaño} • {formatDate(doc.fechaCarga)}
-                      </p>
-                    </div>
-                  </div>
-                  <button className="text-primary hover:text-blue-700 transition-colors">
-                    <Download className="w-5 h-5" />
-                  </button>
-                </div>
-              ))
-            )}
+                    ))
+                )}
+              </div>
+            </div>
+
+            {/* Vuelos */}
+            <div>
+              <div className="flex items-center space-x-2 mb-3">
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+                <h4 className="text-md font-semibold text-gray-900">Vuelos</h4>
+              </div>
+              <div className="space-y-2">
+                {documentos.filter(doc => doc.categoria === 'Vuelos').length === 0 ? (
+                  <p className="text-gray-500 text-sm py-2 pl-7">
+                    No hay documentos en esta categoría
+                  </p>
+                ) : (
+                  documentos
+                    .filter(doc => doc.categoria === 'Vuelos')
+                    .map(doc => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <FileText className="w-5 h-5 text-primary flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={doc.url}
+                              className="text-sm font-medium text-gray-900 hover:text-primary truncate block"
+                            >
+                              {doc.nombre}
+                            </a>
+                            <span className="text-xs text-gray-500 block mt-1">
+                              {formatDate(doc.fechaSubida)}
+                            </span>
+                          </div>
+                        </div>
+                        <a
+                          href={doc.url}
+                          className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                          title="Descargar"
+                        >
+                          <Download className="w-5 h-5" />
+                        </a>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+
+            {/* Hoteles */}
+            <div>
+              <div className="flex items-center space-x-2 mb-3">
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                <h4 className="text-md font-semibold text-gray-900">Hoteles</h4>
+              </div>
+              <div className="space-y-2">
+                {documentos.filter(doc => doc.categoria === 'Hoteles').length === 0 ? (
+                  <p className="text-gray-500 text-sm py-2 pl-7">
+                    No hay documentos en esta categoría
+                  </p>
+                ) : (
+                  documentos
+                    .filter(doc => doc.categoria === 'Hoteles')
+                    .map(doc => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <FileText className="w-5 h-5 text-primary flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={doc.url}
+                              className="text-sm font-medium text-gray-900 hover:text-primary truncate block"
+                            >
+                              {doc.nombre}
+                            </a>
+                            <span className="text-xs text-gray-500 block mt-1">
+                              {formatDate(doc.fechaSubida)}
+                            </span>
+                          </div>
+                        </div>
+                        <a
+                          href={doc.url}
+                          className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                          title="Descargar"
+                        >
+                          <Download className="w-5 h-5" />
+                        </a>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
