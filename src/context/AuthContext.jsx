@@ -88,6 +88,7 @@ export const AuthProvider = ({ children }) => {
         solicitudID,
         nombre: file.name,
         tipo: file.type,
+        url: `https://storage.example.com/documentos/${encodeURIComponent(file.name)}`,
         categoria: categoria
       };
 
