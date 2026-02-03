@@ -7,7 +7,7 @@ import SolicitudDetail from '../components/SolicitudDetail';
 import CreateSolicitudModalUser from '../components/CreateSolicitudModalUser';
 
 const UserPortal = () => {
-  const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage, createSolicitud, markMessagesAsRead } = useAuth();
+  const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage, createSolicitud, markMessagesAsRead, updateSolicitudDescripcion } = useAuth();
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
@@ -243,7 +243,9 @@ const UserPortal = () => {
                 mensajes={solicitudMensajes}
                 onUploadDocument={handleUploadDocument}
                 onSendMessage={handleSendMessage}
+                onUpdateDescripcion={updateSolicitudDescripcion}
                 currentUserId={user.id}
+                isUserView={true}
               />
             ) : (
               <div className="bg-white rounded-xl shadow-lg p-12 text-center">

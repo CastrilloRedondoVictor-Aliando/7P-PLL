@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle } from 'lucide-react';
+import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check } from 'lucide-react';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import { MOCK_USERS } from '../data/mockData';
 
@@ -9,11 +9,15 @@ const SolicitudDetail = ({
   mensajes, 
   onUploadDocument, 
   onSendMessage,
-  currentUserId 
+  onUpdateDescripcion,
+  currentUserId,
+  isUserView = false
 }) => {
   const [newMessage, setNewMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [pendingFiles, setPendingFiles] = useState([]);
+  const [editingDescripcion, setEditingDescripcion] = useState(false);
+  const [nuevaDescripcion, setNuevaDescripcion] = useState('');
   const fileInputRef = useRef(null);
   const estadoColors = getEstadoColor(solicitud.estado);
 
@@ -90,6 +94,23 @@ const SolicitudDetail = ({
     return user ? user.name : 'Usuario desconocido';
   };
 
+  const handleEditDescripcion = () => {
+    setNuevaDescripcion(solicitud.comentarios);
+    setEditingDescripcion(true);
+  };
+
+  const handleSaveDescripcion = async () => {
+    if (nuevaDescripcion.trim() && nuevaDescripcion !== solicitud.comentarios && onUpdateDescripcion) {
+      await onUpdateDescripcion(solicitud.id, nuevaDescripcion.trim());
+    }
+    setEditingDescripcion(false);
+  };
+
+  const handleCancelEditDescripcion = () => {
+    setEditingDescripcion(false);
+    setNuevaDescripcion('');
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-lg overflow-hidden">
       {/* Cabecera */}
@@ -115,8 +136,47 @@ const SolicitudDetail = ({
       <div className="p-6 space-y-6">
         {/* Comentarios */}
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Principales funciones realizadas</h3>
-          <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">{solicitud.comentarios}</p>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-gray-900">Principales funciones realizadas</h3>
+            {isUserView && !editingDescripcion && (
+              <button
+                onClick={handleEditDescripcion}
+                className="text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                title="Editar descripción"
+              >
+                <Edit2 className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+          {editingDescripcion ? (
+            <div className="space-y-2">
+              <textarea
+                value={nuevaDescripcion}
+                onChange={(e) => setNuevaDescripcion(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary resize-none"
+                rows="5"
+                autoFocus
+              />
+              <div className="flex space-x-2 justify-end">
+                <button
+                  onClick={handleCancelEditDescripcion}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors flex items-center space-x-2"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Cancelar</span>
+                </button>
+                <button
+                  onClick={handleSaveDescripcion}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Guardar</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">{solicitud.comentarios}</p>
+          )}
         </div>
 
         {/* Documentos */}

@@ -315,6 +315,140 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateSolicitudTitulo = async (solicitudID, nuevoTitulo) => {
+    const solicitudActual = solicitudes.find(s => s.id === solicitudID);
+    
+    if (!solicitudActual) {
+      throw new Error('Solicitud no encontrada');
+    }
+
+    try {
+      const data = await apiRequest(`/solicitudes/${solicitudID}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          titulo: nuevoTitulo,
+          descripcion: solicitudActual.comentarios,
+          estado: solicitudActual.estado
+        })
+      });
+
+      // Enriquecer con datos de usuario si es necesario
+      let solicitudActualizada = data;
+      if (!data.usuarioNombre || !data.cargo) {
+        try {
+          const usuarios = await apiRequest('/auth/users');
+          const usuario = usuarios.find(u => u.id === data.usuarioID);
+          if (usuario) {
+            solicitudActualizada = {
+              ...data,
+              usuarioNombre: usuario.nombre,
+              cargo: usuario.cargo,
+              departamento: usuario.departamento
+            };
+          }
+        } catch (error) {
+          console.error('Error al obtener información del usuario:', error);
+          solicitudActualizada = {
+            ...data,
+            usuarioNombre: solicitudActual.usuarioNombre,
+            cargo: solicitudActual.cargo,
+            departamento: solicitudActual.departamento
+          };
+        }
+      }
+
+      setSolicitudes(prev => 
+        prev.map(sol => 
+          sol.id === solicitudID ? solicitudActualizada : sol
+        )
+      );
+
+      Swal.fire({
+        icon: 'success',
+        title: '¡Título actualizado!',
+        text: 'El título de la solicitud se ha actualizado correctamente',
+        confirmButtonColor: '#1e40af',
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo actualizar el título',
+        confirmButtonColor: '#1e40af'
+      });
+      console.error('Error actualizando título:', error);
+    }
+  };
+
+  const updateSolicitudDescripcion = async (solicitudID, nuevaDescripcion) => {
+    const solicitudActual = solicitudes.find(s => s.id === solicitudID);
+    
+    if (!solicitudActual) {
+      throw new Error('Solicitud no encontrada');
+    }
+
+    try {
+      const data = await apiRequest(`/solicitudes/${solicitudID}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          titulo: solicitudActual.proyecto,
+          descripcion: nuevaDescripcion,
+          estado: solicitudActual.estado
+        })
+      });
+
+      // Enriquecer con datos de usuario si es necesario
+      let solicitudActualizada = data;
+      if (!data.usuarioNombre || !data.cargo) {
+        try {
+          const usuarios = await apiRequest('/auth/users');
+          const usuario = usuarios.find(u => u.id === data.usuarioID);
+          if (usuario) {
+            solicitudActualizada = {
+              ...data,
+              usuarioNombre: usuario.nombre,
+              cargo: usuario.cargo,
+              departamento: usuario.departamento
+            };
+          }
+        } catch (error) {
+          console.error('Error al obtener información del usuario:', error);
+          solicitudActualizada = {
+            ...data,
+            usuarioNombre: solicitudActual.usuarioNombre,
+            cargo: solicitudActual.cargo,
+            departamento: solicitudActual.departamento
+          };
+        }
+      }
+
+      setSolicitudes(prev => 
+        prev.map(sol => 
+          sol.id === solicitudID ? solicitudActualizada : sol
+        )
+      );
+
+      Swal.fire({
+        icon: 'success',
+        title: '¡Descripción actualizada!',
+        text: 'La descripción de la solicitud se ha actualizado correctamente',
+        confirmButtonColor: '#1e40af',
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo actualizar la descripción',
+        confirmButtonColor: '#1e40af'
+      });
+      console.error('Error actualizando descripción:', error);
+    }
+  };
+
   const value = {
     user,
     solicitudes,
@@ -326,6 +460,8 @@ export const AuthProvider = ({ children }) => {
     uploadDocument,
     sendMessage,
     updateSolicitudEstado,
+    updateSolicitudTitulo,
+    updateSolicitudDescripcion,
     createSolicitud,
     markMessagesAsRead,
     markDocsAsViewed,

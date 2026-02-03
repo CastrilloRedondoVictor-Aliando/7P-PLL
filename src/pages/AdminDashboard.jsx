@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, BarChart3, Send, Plus, Bell } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, BarChart3, Send, Plus, Bell, Edit2, Check, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import CreateSolicitudModal from '../components/CreateSolicitudModal';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudTitulo, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterUsuario, setFilterUsuario] = useState('Todos');
@@ -15,6 +15,8 @@ const AdminDashboard = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [showMessagesDropdown, setShowMessagesDropdown] = useState(false);
   const [showDocsDropdown, setShowDocsDropdown] = useState(false);
+  const [editingTitulo, setEditingTitulo] = useState(false);
+  const [nuevoTitulo, setNuevoTitulo] = useState('');
 
   // Contar mensajes no leídos de usuarios
   const unreadMessages = mensajes.filter(m => {
@@ -117,6 +119,24 @@ const AdminDashboard = () => {
       sendMessage(selectedSolicitud.id, newMessage);
       setNewMessage('');
     }
+  };
+
+  const handleEditTitulo = () => {
+    setNuevoTitulo(selectedSolicitud.proyecto);
+    setEditingTitulo(true);
+  };
+
+  const handleSaveTitulo = async () => {
+    if (nuevoTitulo.trim() && nuevoTitulo !== selectedSolicitud.proyecto) {
+      await updateSolicitudTitulo(selectedSolicitud.id, nuevoTitulo.trim());
+      setSelectedSolicitud(prev => ({ ...prev, proyecto: nuevoTitulo.trim() }));
+    }
+    setEditingTitulo(false);
+  };
+
+  const handleCancelEditTitulo = () => {
+    setEditingTitulo(false);
+    setNuevoTitulo('');
   };
 
   if (loading) {
@@ -487,12 +507,51 @@ const AdminDashboard = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <div className="bg-primary text-white p-6 flex justify-between items-center">
-                <div>
-                  <h3 className="text-2xl font-bold">{selectedSolicitud.proyecto}</h3>
+                <div className="flex-1">
+                  {editingTitulo ? (
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={nuevoTitulo}
+                        onChange={(e) => setNuevoTitulo(e.target.value)}
+                        className="flex-1 px-3 py-2 text-gray-900 rounded-lg focus:outline-none"
+                        autoFocus
+                        onKeyPress={(e) => e.key === 'Enter' && handleSaveTitulo()}
+                      />
+                      <button
+                        onClick={handleSaveTitulo}
+                        className="bg-green-500 hover:bg-green-600 p-2 rounded-lg transition-colors"
+                        title="Guardar"
+                      >
+                        <Check className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={handleCancelEditTitulo}
+                        className="bg-red-500 hover:bg-red-600 p-2 rounded-lg transition-colors"
+                        title="Cancelar"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-2xl font-bold">{selectedSolicitud.proyecto}</h3>
+                      <button
+                        onClick={handleEditTitulo}
+                        className="hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
+                        title="Editar título"
+                      >
+                        <Edit2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  )}
                   <p className="text-blue-200 text-sm">Usuario: {getUserName(selectedSolicitud.usuarioID)}</p>
                 </div>
                 <button
-                  onClick={() => setSelectedSolicitud(null)}
+                  onClick={() => {
+                    setSelectedSolicitud(null);
+                    setEditingTitulo(false);
+                  }}
                   className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
                 >
                   <XCircle className="w-6 h-6" />
