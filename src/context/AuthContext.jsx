@@ -162,9 +162,36 @@ export const AuthProvider = ({ children }) => {
         })
       });
 
+      // Verificar si el backend devolvió información del usuario
+      let solicitudActualizada = data;
+      if (!data.usuarioNombre || !data.cargo) {
+        // Obtener información del usuario si no está incluida
+        try {
+          const usuarios = await apiRequest('/auth/users');
+          const usuario = usuarios.find(u => u.id === data.usuarioID);
+          if (usuario) {
+            solicitudActualizada = {
+              ...data,
+              usuarioNombre: usuario.nombre,
+              cargo: usuario.cargo,
+              departamento: usuario.departamento
+            };
+          }
+        } catch (error) {
+          console.error('Error al obtener información del usuario:', error);
+          // Usar datos actuales si hay error
+          solicitudActualizada = {
+            ...data,
+            usuarioNombre: solicitudActual.usuarioNombre,
+            cargo: solicitudActual.cargo,
+            departamento: solicitudActual.departamento
+          };
+        }
+      }
+
       setSolicitudes(prev => 
         prev.map(sol => 
-          sol.id === solicitudID ? data : sol
+          sol.id === solicitudID ? solicitudActualizada : sol
         )
       );
       
