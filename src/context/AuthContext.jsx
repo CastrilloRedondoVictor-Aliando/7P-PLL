@@ -82,14 +82,15 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const uploadDocument = async (solicitudID, file) => {
+  const uploadDocument = async (solicitudID, file, categoria = 'General') => {
     // Por ahora simulamos la subida
     const newDocument = {
       solicitudID,
       nombre: file.name,
       tipo: file.type,
       url: '#',
-      vistoPorAdmin: false
+      vistoPorAdmin: false,
+      categoria: categoria
     };
 
     try {

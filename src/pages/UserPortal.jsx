@@ -71,9 +71,9 @@ const UserPortal = () => {
     }
   };
 
-  const handleUploadDocument = (file) => {
+  const handleUploadDocument = (file, categoria) => {
     if (selectedSolicitud) {
-      uploadDocument(selectedSolicitud.id, file);
+      uploadDocument(selectedSolicitud.id, file, categoria);
     }
   };
 
