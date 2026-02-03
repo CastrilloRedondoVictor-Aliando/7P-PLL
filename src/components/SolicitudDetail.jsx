@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check } from 'lucide-react';
 import { formatDate, getEstadoColor } from '../utils/helpers';
-import { MOCK_USERS } from '../data/mockData';
+import { apiRequest } from '../config/api';
 
 const SolicitudDetail = ({ 
   solicitud, 
@@ -18,8 +18,21 @@ const SolicitudDetail = ({
   const [pendingFiles, setPendingFiles] = useState([]);
   const [editingDescripcion, setEditingDescripcion] = useState(false);
   const [nuevaDescripcion, setNuevaDescripcion] = useState('');
+  const [usuarios, setUsuarios] = useState([]);
   const fileInputRef = useRef(null);
   const estadoColors = getEstadoColor(solicitud.estado);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const data = await apiRequest('/auth/users');
+        setUsuarios(data);
+      } catch (error) {
+        console.error('Error cargando usuarios:', error);
+      }
+    };
+    loadUsers();
+  }, []);
 
   const handleFileSelect = (files) => {
     if (files && files.length > 0) {
@@ -90,8 +103,8 @@ const SolicitudDetail = ({
   };
 
   const getUserName = (userId) => {
-    const user = MOCK_USERS.find(u => u.id === userId);
-    return user ? user.name : 'Usuario desconocido';
+    const user = usuarios.find(u => u.id === userId);
+    return user ? user.nombre : 'Usuario desconocido';
   };
 
   const handleEditDescripcion = () => {

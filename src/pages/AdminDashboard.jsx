@@ -6,7 +6,7 @@ import { formatDate, getEstadoColor } from '../utils/helpers';
 import CreateSolicitudModal from '../components/CreateSolicitudModal';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudTitulo, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudTitulo, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, getUsers } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterUsuario, setFilterUsuario] = useState('Todos');
@@ -17,6 +17,20 @@ const AdminDashboard = () => {
   const [showDocsDropdown, setShowDocsDropdown] = useState(false);
   const [editingTitulo, setEditingTitulo] = useState(false);
   const [nuevoTitulo, setNuevoTitulo] = useState('');
+  const [usuarios, setUsuarios] = useState([]);
+
+  // Cargar usuarios al montar el componente
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const data = await getUsers();
+        setUsuarios(data);
+      } catch (error) {
+        console.error('Error cargando usuarios:', error);
+      }
+    };
+    loadUsers();
+  }, [getUsers]);
 
   // Contar mensajes no leídos de usuarios
   const unreadMessages = mensajes.filter(m => {
@@ -67,6 +81,10 @@ const AdminDashboard = () => {
   };
 
   const getUserName = (userId) => {
+    const usuario = usuarios.find(u => u.id === userId);
+    if (usuario) return usuario.nombre;
+    
+    // Fallback: buscar en solicitudes
     const solicitud = solicitudes.find(s => s.usuarioID === userId);
     return solicitud?.usuarioNombre || 'Usuario desconocido';
   };
