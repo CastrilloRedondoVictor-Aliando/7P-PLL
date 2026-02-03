@@ -83,6 +83,15 @@ const UserPortal = () => {
     }
   };
 
+  const handleUpdateDescripcion = async (solicitudId, nuevaDescripcion) => {
+    await updateSolicitudDescripcion(solicitudId, nuevaDescripcion);
+    // Actualizar la solicitud seleccionada con la nueva descripción
+    setSelectedSolicitud(prev => ({
+      ...prev,
+      comentarios: nuevaDescripcion
+    }));
+  };
+
   const handleCreateSolicitud = (proyecto, comentarios) => {
     createSolicitud(user.id, proyecto, comentarios);
     Swal.fire({
@@ -243,7 +252,7 @@ const UserPortal = () => {
                 mensajes={solicitudMensajes}
                 onUploadDocument={handleUploadDocument}
                 onSendMessage={handleSendMessage}
-                onUpdateDescripcion={updateSolicitudDescripcion}
+                onUpdateDescripcion={handleUpdateDescripcion}
                 currentUserId={user.id}
                 isUserView={true}
               />

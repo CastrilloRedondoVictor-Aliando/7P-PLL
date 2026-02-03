@@ -520,14 +520,14 @@ const AdminDashboard = () => {
                       />
                       <button
                         onClick={handleSaveTitulo}
-                        className="bg-green-500 hover:bg-green-600 p-2 rounded-lg transition-colors"
+                        className="bg-white text-primary hover:bg-blue-50 p-2 rounded-lg transition-colors shadow-sm"
                         title="Guardar"
                       >
                         <Check className="w-5 h-5" />
                       </button>
                       <button
                         onClick={handleCancelEditTitulo}
-                        className="bg-red-500 hover:bg-red-600 p-2 rounded-lg transition-colors"
+                        className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
                         title="Cancelar"
                       >
                         <X className="w-5 h-5" />
