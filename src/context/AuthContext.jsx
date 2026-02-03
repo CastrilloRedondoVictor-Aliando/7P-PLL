@@ -84,14 +84,16 @@ export const AuthProvider = ({ children }) => {
 
   const uploadDocument = async (solicitudID, file, categoria = 'General') => {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('solicitudID', solicitudID);
-      formData.append('categoria', categoria);
+      const newDocument = {
+        solicitudID,
+        nombre: file.name,
+        tipo: file.type,
+        categoria: categoria
+      };
 
       const data = await apiRequest('/documentos', {
         method: 'POST',
-        body: formData
+        body: JSON.stringify(newDocument)
       });
       
       setDocumentos(prevDocumentos => [...prevDocumentos, data]);
