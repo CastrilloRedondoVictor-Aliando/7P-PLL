@@ -84,7 +84,6 @@ export const AuthProvider = ({ children }) => {
 
   const uploadDocument = async (solicitudID, file, categoria) => {
     try {
-      console.log("Subiendo documento:", file.name, "para solicitudID:", solicitudID, "en categoria:", categoria);
       const newDocument = {
         solicitudID,
         nombre: file.name,
@@ -97,6 +96,8 @@ export const AuthProvider = ({ children }) => {
         method: 'POST',
         body: JSON.stringify(newDocument)
       });
+
+      console.log('Documento subido:', data);
       
       setDocumentos(prevDocumentos => [...prevDocumentos, data]);
       
