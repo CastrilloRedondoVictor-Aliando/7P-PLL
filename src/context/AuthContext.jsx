@@ -84,6 +84,7 @@ export const AuthProvider = ({ children }) => {
 
   const uploadDocument = async (solicitudID, file, categoria) => {
     try {
+
       const newDocument = {
         solicitudID,
         nombre: file.name,
@@ -91,6 +92,7 @@ export const AuthProvider = ({ children }) => {
         url: `https://storage.example.com/documentos/${encodeURIComponent(file.name)}`,
         categoria: categoria
       };
+      console.log('Subiendo documento:', newDocument);
 
       const data = await apiRequest('/documentos', {
         method: 'POST',
