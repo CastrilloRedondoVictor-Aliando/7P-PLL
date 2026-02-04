@@ -82,8 +82,9 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const uploadDocument = async (solicitudID, file, categoria = 'General') => {
+  const uploadDocument = async (solicitudID, file, categoria) => {
     try {
+      console.log("Subiendo documento:", file.name, "para solicitudID:", solicitudID, "en categoria:", categoria);
       const newDocument = {
         solicitudID,
         nombre: file.name,

@@ -78,6 +78,7 @@ const SolicitudDetail = ({
   const confirmUpload = () => {
     if (pendingFiles.length > 0) {
       pendingFiles.forEach(file => onUploadDocument(file, selectedCategoria));
+      console.log("categoria seleccionada:", selectedCategoria);
       setPendingFiles([]);
     }
   };
