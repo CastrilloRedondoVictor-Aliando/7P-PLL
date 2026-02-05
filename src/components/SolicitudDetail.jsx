@@ -327,12 +327,12 @@ const SolicitudDetail = ({
                           <div className="flex-1 min-w-0">
                             <a
                               href={doc.url}
-                              className="text-sm font-medium text-gray-900 hover:text-primary truncate block"
+                              className="text-sm font-normal italic text-gray-600 hover:text-gray-800 truncate block"
                             >
                               {doc.nombre}
                             </a>
                             <span className="text-xs text-gray-500 block mt-1">
-                              {formatDate(doc.fechaSubida)}
+                              {doc.createdAt || doc.fechaCarga ? formatDate(doc.createdAt || doc.fechaCarga) : 'Fecha no disponible'}
                             </span>
                           </div>
                         </div>
@@ -375,12 +375,12 @@ const SolicitudDetail = ({
                           <div className="flex-1 min-w-0">
                             <a
                               href={doc.url}
-                              className="text-sm font-medium text-gray-900 hover:text-primary truncate block"
+                              className="text-sm font-normal italic text-gray-600 hover:text-gray-800 truncate block"
                             >
                               {doc.nombre}
                             </a>
                             <span className="text-xs text-gray-500 block mt-1">
-                              {formatDate(doc.fechaSubida)}
+                              {doc.createdAt || doc.fechaCarga ? formatDate(doc.createdAt || doc.fechaCarga) : 'Fecha no disponible'}
                             </span>
                           </div>
                         </div>
@@ -423,12 +423,12 @@ const SolicitudDetail = ({
                           <div className="flex-1 min-w-0">
                             <a
                               href={doc.url}
-                              className="text-sm font-medium text-gray-900 hover:text-primary truncate block"
+                              className="text-sm font-normal italic text-gray-600 hover:text-gray-800 truncate block"
                             >
                               {doc.nombre}
                             </a>
                             <span className="text-xs text-gray-500 block mt-1">
-                              {formatDate(doc.fechaSubida)}
+                              {doc.createdAt || doc.fechaCarga ? formatDate(doc.createdAt || doc.fechaCarga) : 'Fecha no disponible'}
                             </span>
                           </div>
                         </div>

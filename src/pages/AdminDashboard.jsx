@@ -599,7 +599,7 @@ const AdminDashboard = () => {
                             <div key={doc.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                               <div className="flex items-center space-x-2 flex-1 min-w-0">
                                 <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-                                <span className="text-sm text-gray-900 truncate">{doc.nombre}</span>
+                                <span className="text-sm font-normal italic text-gray-600 truncate">{doc.nombre}</span>
                               </div>
                               <a
                                 href={doc.url}
@@ -630,7 +630,7 @@ const AdminDashboard = () => {
                             <div key={doc.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                               <div className="flex items-center space-x-2 flex-1 min-w-0">
                                 <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-                                <span className="text-sm text-gray-900 truncate">{doc.nombre}</span>
+                                <span className="text-sm font-normal italic text-gray-600 truncate">{doc.nombre}</span>
                               </div>
                               <a
                                 href={doc.url}
@@ -661,7 +661,7 @@ const AdminDashboard = () => {
                             <div key={doc.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                               <div className="flex items-center space-x-2 flex-1 min-w-0">
                                 <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-                                <span className="text-sm text-gray-900 truncate">{doc.nombre}</span>
+                                <span className="text-sm font-normal italic text-gray-600 truncate">{doc.nombre}</span>
                               </div>
                               <a
                                 href={doc.url}
