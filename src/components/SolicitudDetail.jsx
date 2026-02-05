@@ -323,15 +323,14 @@ const SolicitudDetail = ({
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
-                          <FileText className="w-5 h-5 text-primary flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <a
                               href={doc.url}
-                              className="text-sm font-normal italic text-gray-600 hover:text-gray-800 truncate block"
+                              className="text-sm font-normal text-gray-600 hover:text-gray-800 truncate block"
                             >
                               {doc.nombre}
                             </a>
-                            <span className="text-xs text-gray-500 block mt-1">
+                            <span className="text-[0.7rem] italic text-gray-500 block mt-0.5">
                               {doc.createdAt || doc.fechaCarga ? formatDate(doc.createdAt || doc.fechaCarga) : 'Fecha no disponible'}
                             </span>
                           </div>
@@ -371,15 +370,14 @@ const SolicitudDetail = ({
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
-                          <FileText className="w-5 h-5 text-primary flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <a
                               href={doc.url}
-                              className="text-sm font-normal italic text-gray-600 hover:text-gray-800 truncate block"
+                              className="text-sm font-normal text-gray-600 hover:text-gray-800 truncate block"
                             >
                               {doc.nombre}
                             </a>
-                            <span className="text-xs text-gray-500 block mt-1">
+                            <span className="text-[0.7rem] italic text-gray-500 block mt-0.5">
                               {doc.createdAt || doc.fechaCarga ? formatDate(doc.createdAt || doc.fechaCarga) : 'Fecha no disponible'}
                             </span>
                           </div>
@@ -419,15 +417,14 @@ const SolicitudDetail = ({
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
-                          <FileText className="w-5 h-5 text-primary flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <a
                               href={doc.url}
-                              className="text-sm font-normal italic text-gray-600 hover:text-gray-800 truncate block"
+                              className="text-sm font-normal text-gray-600 hover:text-gray-800 truncate block"
                             >
                               {doc.nombre}
                             </a>
-                            <span className="text-xs text-gray-500 block mt-1">
+                            <span className="text-[0.7rem] italic text-gray-500 block mt-0.5">
                               {doc.createdAt || doc.fechaCarga ? formatDate(doc.createdAt || doc.fechaCarga) : 'Fecha no disponible'}
                             </span>
                           </div>
