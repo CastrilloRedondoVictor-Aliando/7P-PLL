@@ -5,13 +5,17 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://7p-pll-api.
 export const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   
+  // Extraer token de options si existe
+  const { token, ...fetchOptions } = options;
+  
   const config = {
     credentials: 'include', // Importante para CORS con credenciales
     headers: {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(token && { 'Authorization': `Bearer ${token}` }), // Agregar token si existe
+      ...fetchOptions.headers,
     },
-    ...options,
+    ...fetchOptions,
   };
 
   try {

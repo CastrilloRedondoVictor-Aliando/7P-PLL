@@ -1,54 +1,124 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useMsal } from '@azure/msal-react';
 import Swal from 'sweetalert2';
 import { AuthContext } from './AuthContextDefinition';
 import { apiRequest } from '../config/api';
+import { loginRequest } from '../config/msalConfig';
 
 export const AuthProvider = ({ children }) => {
+  const { instance, accounts } = useMsal();
   const [user, setUser] = useState(() => {
-    // Inicializar desde localStorage
-    const savedUser = localStorage.getItem('user');
+    // Inicializar desde sessionStorage (más seguro que localStorage para tokens)
+    const savedUser = sessionStorage.getItem('user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
   const [solicitudes, setSolicitudes] = useState([]);
   const [documentos, setDocumentos] = useState([]);
   const [mensajes, setMensajes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  // Sincronizar con localStorage cuando cambie el usuario
+  // Sincronizar con sessionStorage cuando cambie el usuario
   useEffect(() => {
     if (user) {
-      localStorage.setItem('user', JSON.stringify(user));
+      sessionStorage.setItem('user', JSON.stringify(user));
     } else {
-      localStorage.removeItem('user');
+      sessionStorage.removeItem('user');
     }
   }, [user]);
+
+  // Marcar como inicializado después de un momento
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitializing(false);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Cargar datos cuando el usuario inicie sesión
   useEffect(() => {
-    if (user) {
+    if (user && !isInitializing) {
       loadData();
-    } else {
+    } else if (!user && !isInitializing) {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, isInitializing]);
+
+  // Función auxiliar para obtener el token de acceso
+  const getAccessToken = async () => {
+    if (accounts.length === 0) {
+      throw new Error('No hay cuenta autenticada');
+    }
+
+    try {
+      const response = await instance.acquireTokenSilent({
+        ...loginRequest,
+        account: accounts[0]
+      });
+      return response.accessToken;
+    } catch (error) {
+      console.error('Error obteniendo token silenciosamente:', error);
+      // Si falla el token silencioso, intentar con popup
+      try {
+        const response = await instance.acquireTokenPopup(loginRequest);
+        return response.accessToken;
+      } catch (popupError) {
+        console.error('Error obteniendo token con popup:', popupError);
+        throw popupError;
+      }
+    }
+  };
+
+  // Manejar login exitoso de MSAL - sincronizar con backend
+  const handleLoginSuccess = useCallback(async (accessToken = null) => {
+    try {
+      setLoading(true);
+      
+      // Si no se proporciona token, obtenerlo
+      const token = accessToken || await getAccessToken();
+      
+      // Sincronizar usuario con backend
+      const data = await apiRequest('/auth/sync-user', {
+        method: 'POST',
+        body: JSON.stringify({ token })
+      });
+      
+      setUser(data.user);
+      return true;
+    } catch (error) {
+      console.error('Error sincronizando usuario:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error de autenticación',
+        text: 'No se pudo sincronizar tu usuario. Por favor, intenta de nuevo.',
+        confirmButtonColor: '#1e40af'
+      });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
       
+      // Obtener token para las peticiones
+      const token = await getAccessToken();
+      
       // Cargar solicitudes
       const queryParams = user.rol === 'user' 
         ? `?usuarioID=${user.id}&rol=user` 
         : '';
-      const solicitudesData = await apiRequest(`/solicitudes${queryParams}`);
+      const solicitudesData = await apiRequest(`/solicitudes${queryParams}`, { token });
       setSolicitudes(solicitudesData);
 
       // Cargar documentos
-      const documentosData = await apiRequest('/documentos');
+      const documentosData = await apiRequest('/documentos', { token });
       setDocumentos(documentosData);
 
       // Cargar mensajes
-      const mensajesData = await apiRequest('/mensajes');
+      const mensajesData = await apiRequest('/mensajes', { token });
       setMensajes(mensajesData);
     } catch (error) {
       console.error('Error cargando datos:', error);
@@ -63,27 +133,39 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password) => {
+  const login = async () => {
     try {
-      const data = await apiRequest('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password })
-      });
-      
-      setUser(data.user);
+      // Iniciar login con redirect de MSAL
+      await instance.loginRedirect(loginRequest);
+      // El callback se maneja en App.jsx
       return true;
     } catch (error) {
       console.error('Error en login:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo iniciar sesión. Por favor, intenta de nuevo.',
+        confirmButtonColor: '#1e40af'
+      });
       return false;
     }
   };
 
-  const logout = () => {
-    setUser(null);
+  const logout = async () => {
+    try {
+      setUser(null);
+      await instance.logoutRedirect();
+    } catch (error) {
+      console.error('Error en logout:', error);
+      // Forzar limpieza aunque falle MSAL
+      setUser(null);
+      sessionStorage.removeItem('user');
+    }
   };
 
   const uploadDocument = async (solicitudID, file, categoria) => {
     try {
+      const token = await getAccessToken();
 
       const newDocument = {
         solicitudID,
@@ -92,14 +174,13 @@ export const AuthProvider = ({ children }) => {
         url: `https://storage.example.com/documentos/${encodeURIComponent(file.name)}`,
         categoria: categoria
       };
-      console.log('Subiendo documento:', newDocument);
 
       const data = await apiRequest('/documentos', {
         method: 'POST',
-        body: JSON.stringify(newDocument)
+        body: JSON.stringify(newDocument),
+        token
       });
 
-      console.log('Documento subido:', data);
       
       setDocumentos(prevDocumentos => [...prevDocumentos, data]);
       
@@ -131,9 +212,11 @@ export const AuthProvider = ({ children }) => {
     };
 
     try {
+      const token = await getAccessToken();
       const data = await apiRequest('/mensajes', {
         method: 'POST',
-        body: JSON.stringify(newMessage)
+        body: JSON.stringify(newMessage),
+        token
       });
       
       setMensajes([...mensajes, data]);
@@ -156,21 +239,23 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
+      const token = await getAccessToken();
       const data = await apiRequest(`/solicitudes/${solicitudID}`, {
         method: 'PUT',
         body: JSON.stringify({
           titulo: solicitudActual.titulo,
           descripcion: solicitudActual.descripcion,
           estado: nuevoEstado
-        })
+        }),
+        token
       });
 
       // Verificar si el backend devolvió información del usuario
       let solicitudActualizada = data;
       if (!data.usuarioNombre || !data.cargo) {
-        // Obtener información del usuario si no está incluida
         try {
-          const usuarios = await apiRequest('/auth/users');
+          const token = await getAccessToken();
+          const usuarios = await apiRequest('/auth/users', { token });
           const usuario = usuarios.find(u => u.id === data.usuarioID);
           if (usuario) {
             solicitudActualizada = {
@@ -233,19 +318,22 @@ export const AuthProvider = ({ children }) => {
 
   const createSolicitud = async (usuarioID, proyecto, comentarios) => {
     try {
+      const token = await getAccessToken();
       const data = await apiRequest('/solicitudes', {
         method: 'POST',
         body: JSON.stringify({
           usuarioID,
           titulo: proyecto,
           descripcion: comentarios
-        })
+        }),
+        token
       });
       
       // Enriquecer la solicitud con datos del usuario si no los incluye el backend
       if (!data.usuarioNombre || !data.cargo) {
         try {
-          const usuarios = await apiRequest('/auth/users');
+          const token = await getAccessToken();
+          const usuarios = await apiRequest('/auth/users', { token });
           const usuario = usuarios.find(u => u.id === usuarioID);
           if (usuario) {
             data.usuarioNombre = data.usuarioNombre || usuario.nombre;
@@ -272,9 +360,11 @@ export const AuthProvider = ({ children }) => {
 
   const markMessagesAsRead = async (solicitudID) => {
     try {
+      const token = await getAccessToken();
       await apiRequest('/mensajes/mark-read', {
         method: 'POST',
-        body: JSON.stringify({ solicitudID })
+        body: JSON.stringify({ solicitudID }),
+        token
       });
       
       setMensajes(prev => 
@@ -291,9 +381,11 @@ export const AuthProvider = ({ children }) => {
 
   const markDocsAsViewed = async (solicitudID) => {
     try {
+      const token = await getAccessToken();
       await apiRequest('/documentos/mark-viewed', {
         method: 'POST',
-        body: JSON.stringify({ solicitudID })
+        body: JSON.stringify({ solicitudID }),
+        token
       });
       
       setDocumentos(prev =>
@@ -310,7 +402,8 @@ export const AuthProvider = ({ children }) => {
 
   const getUsers = async () => {
     try {
-      const data = await apiRequest('/auth/users');
+      const token = await getAccessToken();
+      const data = await apiRequest('/auth/users', { token });
       return data;
     } catch (error) {
       console.error('Error obteniendo usuarios:', error);
@@ -326,20 +419,23 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
+      const token = await getAccessToken();
       const data = await apiRequest(`/solicitudes/${solicitudID}`, {
         method: 'PUT',
         body: JSON.stringify({
           titulo: nuevoTitulo,
           descripcion: solicitudActual.comentarios,
           estado: solicitudActual.estado
-        })
+        }),
+        token
       });
 
       // Enriquecer con datos de usuario si es necesario
       let solicitudActualizada = data;
       if (!data.usuarioNombre || !data.cargo) {
         try {
-          const usuarios = await apiRequest('/auth/users');
+          const token = await getAccessToken();
+          const usuarios = await apiRequest('/auth/users', { token });
           const usuario = usuarios.find(u => u.id === data.usuarioID);
           if (usuario) {
             solicitudActualizada = {
@@ -393,20 +489,23 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
+      const token = await getAccessToken();
       const data = await apiRequest(`/solicitudes/${solicitudID}`, {
         method: 'PUT',
         body: JSON.stringify({
           titulo: solicitudActual.proyecto,
           descripcion: nuevaDescripcion,
           estado: solicitudActual.estado
-        })
+        }),
+        token
       });
 
       // Enriquecer con datos de usuario si es necesario
       let solicitudActualizada = data;
       if (!data.usuarioNombre || !data.cargo) {
         try {
-          const usuarios = await apiRequest('/auth/users');
+          const token = await getAccessToken();
+          const usuarios = await apiRequest('/auth/users', { token });
           const usuario = usuarios.find(u => u.id === data.usuarioID);
           if (usuario) {
             solicitudActualizada = {
@@ -469,7 +568,9 @@ export const AuthProvider = ({ children }) => {
     markMessagesAsRead,
     markDocsAsViewed,
     loadData,
-    getUsers
+    getUsers,
+    handleLoginSuccess,
+    isInitializing
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

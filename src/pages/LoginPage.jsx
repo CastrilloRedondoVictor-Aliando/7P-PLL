@@ -1,42 +1,19 @@
 import { useState } from 'react';
 import { LogIn } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
-const LoginPage = ({ onLogin }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+const LoginPage = () => {
+  const { login } = useAuth();
   const [loading, setLoading] = useState(false);
 
-  // Usuarios de prueba
-  const DEMO_USERS = [
-    { email: 'admin@7p-pll.com', password: 'password123', nombre: 'Admin User', rol: 'admin' },
-    { email: 'victor@7p-pll.com', password: 'password123', nombre: 'Victor Castrillo', rol: 'user' },
-    { email: 'maria@7p-pll.com', password: 'password123', nombre: 'Maria Rodriguez', rol: 'user' },
-    { email: 'carlos@7p-pll.com', password: 'password123', nombre: 'Carlos Gomez', rol: 'user' }
-  ];
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
+  const handleMicrosoftLogin = async () => {
     setLoading(true);
-    
     try {
-      const success = await onLogin(email, password);
-      if (!success) {
-        setError('Email o contraseña incorrectos');
-      }
-    } catch (err) {
-      setError('Error al iniciar sesión. Por favor, intenta de nuevo.');
-      console.error('Error en login:', err);
-    } finally {
+      await login();
+    } catch (error) {
+      console.error('Error iniciando sesión:', error);
       setLoading(false);
     }
-  };
-
-  const handleSelectUser = (user) => {
-    setEmail(user.email);
-    setPassword(user.password);
-    setError('');
   };
 
   return (
@@ -50,80 +27,38 @@ const LoginPage = ({ onLogin }) => {
           <p className="text-gray-600 mt-2">Portal de Gestión de Solicitudes</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary transition-colors"
-              placeholder="usuario@email.com"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary transition-colors"
-              placeholder="••••••••"
-              required
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-100 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
+        <div className="space-y-6">
           <button
-            type="submit"
+            onClick={handleMicrosoftLogin}
             disabled={loading}
-            className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-white border-2 border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
           >
-            {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-700"></div>
+                <span>Redirigiendo...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+                  <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+                  <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+                  <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+                </svg>
+                <span>Iniciar sesión con Microsoft</span>
+              </>
+            )}
           </button>
-        </form>
 
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <p className="text-xs font-semibold text-gray-700 text-center mb-3">
-            Usuarios de prueba:
-          </p>
-          <div className="space-y-2">
-            {DEMO_USERS.map((user, index) => (
-              <div 
-                key={index} 
-                className="bg-gray-50 rounded-lg p-3 border border-gray-200 flex items-center justify-between"
-              >
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-gray-900">
-                    {user.email} <span className="text-gray-600">({user.nombre})</span>
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Contraseña: <span className="font-mono bg-gray-200 px-2 py-0.5 rounded">{user.password}</span>
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleSelectUser(user)}
-                  disabled={loading}
-                  className="ml-3 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded hover:bg-blue-700 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Seleccionar
-                </button>
-              </div>
-            ))}
+          <div className="text-center text-sm text-gray-600 mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="font-medium text-blue-900 mb-2">
+              Autenticación empresarial
+            </p>
+            <p className="text-xs text-gray-700">
+              Puedes iniciar sesión con cualquier cuenta corporativa de Microsoft. 
+              Los usuarios de <strong>Pérez-Llorca</strong> tendrán permisos de administrador automáticamente.
+            </p>
           </div>
         </div>
       </div>
