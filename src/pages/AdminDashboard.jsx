@@ -446,56 +446,78 @@ const AdminDashboard = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Estadísticas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <button
+            type="button"
+            onClick={() => {
+              setFilterEstado('Pendiente');
+              setCurrentPage(1);
+            }}
+            className="bg-white rounded-xl shadow-md p-6 text-left transition-colors hover:bg-blue-50 hover:shadow-lg"
+            aria-label="Filtrar solicitudes pendientes"
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Total Solicitudes</p>
-                <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
-              </div>
-              <BarChart3 className="w-12 h-12 text-primary opacity-20" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm">Pendientes</p>
+                <p className="text-gray-600 text-sm">Solicitudes Pendientes</p>
                 <p className="text-3xl font-bold text-yellow-600">{stats.pendientes}</p>
               </div>
               <AlertCircle className="w-12 h-12 text-yellow-600 opacity-20" />
             </div>
-          </div>
+          </button>
 
-          <div className="bg-white rounded-xl shadow-md p-6">
+          <button
+            type="button"
+            onClick={() => {
+              setFilterEstado('En Proceso');
+              setCurrentPage(1);
+            }}
+            className="bg-white rounded-xl shadow-md p-6 text-left transition-colors hover:bg-blue-50 hover:shadow-lg"
+            aria-label="Filtrar solicitudes en proceso"
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">En Proceso</p>
+                <p className="text-gray-600 text-sm">Solicitudes En Proceso</p>
                 <p className="text-3xl font-bold text-blue-600">{stats.enProceso}</p>
               </div>
               <AlertCircle className="w-12 h-12 text-blue-600 opacity-20" />
             </div>
-          </div>
+          </button>
 
-          <div className="bg-white rounded-xl shadow-md p-6">
+          <button
+            type="button"
+            onClick={() => {
+              setFilterEstado('Aceptada');
+              setCurrentPage(1);
+            }}
+            className="bg-white rounded-xl shadow-md p-6 text-left transition-colors hover:bg-blue-50 hover:shadow-lg"
+            aria-label="Filtrar solicitudes aceptadas"
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Aceptadas</p>
+                <p className="text-gray-600 text-sm">Solicitudes Aceptadas</p>
                 <p className="text-3xl font-bold text-green-600">{stats.completadas}</p>
               </div>
               <CheckCircle className="w-12 h-12 text-green-600 opacity-20" />
             </div>
-          </div>
+          </button>
 
-          <div className="bg-white rounded-xl shadow-md p-6">
+          <button
+            type="button"
+            onClick={() => {
+              setFilterEstado('Rechazada');
+              setCurrentPage(1);
+            }}
+            className="bg-white rounded-xl shadow-md p-6 text-left transition-colors hover:bg-blue-50 hover:shadow-lg"
+            aria-label="Filtrar solicitudes rechazadas"
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Rechazadas</p>
+                <p className="text-gray-600 text-sm">Solicitudes Rechazadas</p>
                 <p className="text-3xl font-bold text-red-600">{stats.rechazadas}</p>
               </div>
               <XCircle className="w-12 h-12 text-red-600 opacity-20" />
             </div>
-          </div>
+          </button>
         </div>
 
         {/* Filtros */}
@@ -560,7 +582,7 @@ const AdminDashboard = () => {
                     Estado
                   </th>
                   <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">
-                    Fecha
+                    Fecha de creación
                   </th>
                   <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
                     Documentos
@@ -573,7 +595,10 @@ const AdminDashboard = () => {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 animate-fade-in-up" key={`table-page-${currentPage}`}>
+              <tbody
+                className="divide-y divide-gray-200 animate-fade-in-up"
+                key={`table-page-${currentPage}-${filterEstado}-${filterUsuario}-${searchTerm}`}
+              >
                 {filteredSolicitudes.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-4 sm:px-6 py-8 text-center text-gray-500">
@@ -640,7 +665,10 @@ const AdminDashboard = () => {
         </div>
 
         {/* Cards de Solicitudes (movil) */}
-        <div className="xl:hidden space-y-4" key={`cards-page-${currentPage}`}>
+        <div
+          className="xl:hidden space-y-4 animate-fade-in-up"
+          key={`cards-page-${currentPage}-${filterEstado}-${filterUsuario}-${searchTerm}`}
+        >
           {filteredSolicitudes.length === 0 ? (
             <div className="bg-white rounded-xl shadow-md p-6 text-center text-gray-500">
               No hay solicitudes
@@ -678,7 +706,7 @@ const AdminDashboard = () => {
 
                   <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-gray-600">
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-500">Fecha</span>
+                      <span className="text-gray-500">Fecha de creación</span>
                       <span className="font-medium text-gray-700">{formatDate(solicitud.fechaCreacion)}</span>
                     </div>
                     <div className="flex items-center justify-between">
