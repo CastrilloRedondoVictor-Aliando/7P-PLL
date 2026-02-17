@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, getEstadoColor } from '../utils/helpers';
@@ -80,6 +80,7 @@ const AdminDashboard = () => {
   }).sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
 
   const totalPages = Math.max(1, Math.ceil(filteredSolicitudes.length / itemsPerPage));
+  const showPagination = filteredSolicitudes.length > itemsPerPage;
   const pagedSolicitudes = filteredSolicitudes.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -94,6 +95,22 @@ const AdminDashboard = () => {
     rechazadas: solicitudes.filter(s => s.estado === 'Rechazada').length,
   };
 
+  const estadoFiltroStyles = {
+    Todos: { hover: 'hover:bg-blue-50', selected: 'bg-blue-50 ring-1 ring-blue-100' },
+    Pendiente: { hover: 'hover:bg-yellow-50', selected: 'bg-yellow-50 ring-1 ring-yellow-100' },
+    'En Proceso': { hover: 'hover:bg-blue-50', selected: 'bg-blue-50 ring-1 ring-blue-100' },
+    Aceptada: { hover: 'hover:bg-green-50', selected: 'bg-green-50 ring-1 ring-green-100' },
+    Rechazada: { hover: 'hover:bg-red-50', selected: 'bg-red-50 ring-1 ring-red-100' }
+  };
+
+  const usuariosParaFiltro = (usuarios && usuarios.length > 0)
+    ? usuarios.filter(u => u.rol === 'user')
+    : solicitudes.map(s => ({
+        id: s.usuarioID,
+        nombre: s.usuarioNombre,
+        email: s.usuarioEmail
+      }));
+
   const handleEstadoChange = (solicitudId, nuevoEstado) => {
     updateSolicitudEstado(solicitudId, nuevoEstado);
   };
@@ -103,6 +120,18 @@ const AdminDashboard = () => {
   const renderEstadoSelector = (solicitud) => {
     const estadoColors = getEstadoColor(solicitud.estado);
     const isOpen = openEstadoId === solicitud.id;
+    const estadoItemStyles = {
+      Pendiente: 'hover:bg-yellow-50',
+      'En Proceso': 'hover:bg-blue-50',
+      Aceptada: 'hover:bg-green-50',
+      Rechazada: 'hover:bg-red-50'
+    };
+    const estadoSelectedStyles = {
+      Pendiente: 'bg-yellow-50 text-yellow-700',
+      'En Proceso': 'bg-blue-50 text-blue-700',
+      Aceptada: 'bg-green-50 text-green-700',
+      Rechazada: 'bg-red-50 text-red-700'
+    };
 
     return (
       <div className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
@@ -130,7 +159,7 @@ const AdminDashboard = () => {
                   handleEstadoChange(solicitud.id, estado);
                   setOpenEstadoId(null);
                 }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 ${estado === solicitud.estado ? 'font-semibold text-primary' : 'text-gray-700'}`}
+                className={`w-full text-left px-3 py-2 text-sm ${estadoItemStyles[estado] || 'hover:bg-gray-50'} ${estado === solicitud.estado ? `font-semibold ${estadoSelectedStyles[estado] || 'bg-gray-50 text-gray-700'}` : 'text-gray-700'}`}
               >
                 {estado}
               </button>
@@ -506,23 +535,37 @@ const AdminDashboard = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Estadísticas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 sm:gap-6 mb-6 sm:mb-8">
+          <button
+            type="button"
+            onClick={() => {
+              setFilterEstado('Todos');
+              setCurrentPage(1);
+            }}
+            className={`relative overflow-hidden rounded-xl shadow-md p-4 sm:p-6 text-left transition-colors hover:shadow-lg ${estadoFiltroStyles.Todos.hover} ${filterEstado === 'Todos' ? estadoFiltroStyles.Todos.selected : 'bg-white'}`}
+            aria-label="Mostrar todas las solicitudes"
+          >
+            <div className="relative z-10">
+              <p className="text-gray-600 text-xs sm:text-sm">Todas las peticiones</p>
+              <p className="text-2xl sm:text-3xl font-bold text-primary">{stats.total}</p>
+            </div>
+            <Layers className="absolute -right-5 -bottom-5 w-20 h-20 sm:w-24 sm:h-24 text-primary opacity-15" />
+          </button>
+
           <button
             type="button"
             onClick={() => {
               setFilterEstado('Pendiente');
               setCurrentPage(1);
             }}
-            className="bg-white rounded-xl shadow-md p-6 text-left transition-colors hover:bg-blue-50 hover:shadow-lg"
+            className={`relative overflow-hidden rounded-xl shadow-md p-4 sm:p-6 text-left transition-colors hover:shadow-lg ${estadoFiltroStyles.Pendiente.hover} ${filterEstado === 'Pendiente' ? estadoFiltroStyles.Pendiente.selected : 'bg-white'}`}
             aria-label="Filtrar solicitudes pendientes"
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm">Solicitudes Pendientes</p>
-                <p className="text-3xl font-bold text-yellow-600">{stats.pendientes}</p>
-              </div>
-              <AlertCircle className="w-12 h-12 text-yellow-600 opacity-20" />
+            <div className="relative z-10">
+              <p className="text-gray-600 text-xs sm:text-sm">Solicitudes Pendientes</p>
+              <p className="text-2xl sm:text-3xl font-bold text-yellow-600">{stats.pendientes}</p>
             </div>
+            <AlertCircle className="absolute -right-5 -bottom-5 w-20 h-20 sm:w-24 sm:h-24 text-yellow-600 opacity-15" />
           </button>
 
           <button
@@ -531,16 +574,14 @@ const AdminDashboard = () => {
               setFilterEstado('En Proceso');
               setCurrentPage(1);
             }}
-            className="bg-white rounded-xl shadow-md p-6 text-left transition-colors hover:bg-blue-50 hover:shadow-lg"
+            className={`relative overflow-hidden rounded-xl shadow-md p-4 sm:p-6 text-left transition-colors hover:shadow-lg ${estadoFiltroStyles['En Proceso'].hover} ${filterEstado === 'En Proceso' ? estadoFiltroStyles['En Proceso'].selected : 'bg-white'}`}
             aria-label="Filtrar solicitudes en proceso"
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm">Solicitudes En Proceso</p>
-                <p className="text-3xl font-bold text-blue-600">{stats.enProceso}</p>
-              </div>
-              <AlertCircle className="w-12 h-12 text-blue-600 opacity-20" />
+            <div className="relative z-10">
+              <p className="text-gray-600 text-xs sm:text-sm">Solicitudes En Proceso</p>
+              <p className="text-2xl sm:text-3xl font-bold text-blue-600">{stats.enProceso}</p>
             </div>
+            <Clock className="absolute -right-5 -bottom-5 w-20 h-20 sm:w-24 sm:h-24 text-blue-600 opacity-15" />
           </button>
 
           <button
@@ -549,16 +590,14 @@ const AdminDashboard = () => {
               setFilterEstado('Aceptada');
               setCurrentPage(1);
             }}
-            className="bg-white rounded-xl shadow-md p-6 text-left transition-colors hover:bg-blue-50 hover:shadow-lg"
+            className={`relative overflow-hidden rounded-xl shadow-md p-4 sm:p-6 text-left transition-colors hover:shadow-lg ${estadoFiltroStyles.Aceptada.hover} ${filterEstado === 'Aceptada' ? estadoFiltroStyles.Aceptada.selected : 'bg-white'}`}
             aria-label="Filtrar solicitudes aceptadas"
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm">Solicitudes Aceptadas</p>
-                <p className="text-3xl font-bold text-green-600">{stats.completadas}</p>
-              </div>
-              <CheckCircle className="w-12 h-12 text-green-600 opacity-20" />
+            <div className="relative z-10">
+              <p className="text-gray-600 text-xs sm:text-sm">Solicitudes Aceptadas</p>
+              <p className="text-2xl sm:text-3xl font-bold text-green-600">{stats.completadas}</p>
             </div>
+            <CheckCircle className="absolute -right-5 -bottom-5 w-20 h-20 sm:w-24 sm:h-24 text-green-600 opacity-15" />
           </button>
 
           <button
@@ -567,50 +606,36 @@ const AdminDashboard = () => {
               setFilterEstado('Rechazada');
               setCurrentPage(1);
             }}
-            className="bg-white rounded-xl shadow-md p-6 text-left transition-colors hover:bg-blue-50 hover:shadow-lg"
+            className={`relative overflow-hidden rounded-xl shadow-md p-4 sm:p-6 text-left transition-colors hover:shadow-lg ${estadoFiltroStyles.Rechazada.hover} ${filterEstado === 'Rechazada' ? estadoFiltroStyles.Rechazada.selected : 'bg-white'}`}
             aria-label="Filtrar solicitudes rechazadas"
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm">Solicitudes Rechazadas</p>
-                <p className="text-3xl font-bold text-red-600">{stats.rechazadas}</p>
-              </div>
-              <XCircle className="w-12 h-12 text-red-600 opacity-20" />
+            <div className="relative z-10">
+              <p className="text-gray-600 text-xs sm:text-sm">Solicitudes Rechazadas</p>
+              <p className="text-2xl sm:text-3xl font-bold text-red-600">{stats.rechazadas}</p>
             </div>
+            <XCircle className="absolute -right-5 -bottom-5 w-20 h-20 sm:w-24 sm:h-24 text-red-600 opacity-15" />
           </button>
         </div>
 
         {/* Filtros */}
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <select
               value={filterUsuario}
               onChange={(e) => setFilterUsuario(e.target.value)}
               className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
             >
               <option value="Todos">Todos los usuarios</option>
-              {solicitudes
-                .map(s => ({ id: s.usuarioID, nombre: s.usuarioNombre, email: s.usuarioEmail }))
-                .filter((user, index, self) => 
+              {usuariosParaFiltro
+                .filter(user => user && user.id != null)
+                .filter((user, index, self) =>
                   index === self.findIndex(u => u.id === user.id)
                 )
                 .map(u => (
                   <option key={u.id} value={u.id}>
-                    {u.nombre} ({u.email})
+                    {u.nombre}{u.email ? ` (${u.email})` : ''}
                   </option>
                 ))}
-            </select>
-
-            <select
-              value={filterEstado}
-              onChange={(e) => setFilterEstado(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
-            >
-              <option value="Todos">Todos los estados</option>
-              <option value="Pendiente">Pendiente</option>
-              <option value="En Proceso">En Proceso</option>
-              <option value="Aceptada">Aceptada</option>
-              <option value="Rechazada">Rechazada</option>
             </select>
 
             <div className="relative">
@@ -756,49 +781,59 @@ const AdminDashboard = () => {
           )}
         </div>
 
-        {filteredSolicitudes.length > itemsPerPage && (
-          <div className="mt-4 flex items-center justify-between text-sm xl:hidden">
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium shadow-sm transition-colors hover:border-primary hover:text-primary hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
-            >
-              Anterior
-            </button>
-            <span className="text-gray-600">
-              Pagina {currentPage} de {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium shadow-sm transition-colors hover:border-primary hover:text-primary hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
-            >
-              Siguiente
-            </button>
-          </div>
-        )}
+        <div
+          className={`xl:hidden flex items-center justify-between text-sm overflow-hidden origin-top transition-all duration-300 ${
+            showPagination
+              ? 'mt-4 max-h-20 opacity-100 scale-100 animate-pop-in'
+              : 'mt-0 max-h-0 opacity-0 scale-95 pointer-events-none animate-pop-out'
+          }`}
+          aria-hidden={!showPagination}
+        >
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium shadow-sm transition-colors hover:border-primary hover:text-primary hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
+          >
+            Anterior
+          </button>
+          <span className="text-gray-600">
+            Pagina {currentPage} de {totalPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium shadow-sm transition-colors hover:border-primary hover:text-primary hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
+          >
+            Siguiente
+          </button>
+        </div>
 
-        {filteredSolicitudes.length > itemsPerPage && (
-          <div className="mt-4 hidden items-center justify-between text-sm xl:flex">
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium shadow-sm transition-colors hover:border-primary hover:text-primary hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
-            >
-              Anterior
-            </button>
-            <span className="text-gray-600">
-              Pagina {currentPage} de {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium shadow-sm transition-colors hover:border-primary hover:text-primary hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
-            >
-              Siguiente
-            </button>
-          </div>
-        )}
+        <div
+          className={`hidden xl:flex items-center justify-between text-sm overflow-hidden origin-top transition-all duration-300 ${
+            showPagination
+              ? 'mt-4 max-h-20 opacity-100 scale-100 animate-pop-in'
+              : 'mt-0 max-h-0 opacity-0 scale-95 pointer-events-none animate-pop-out'
+          }`}
+          aria-hidden={!showPagination}
+        >
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium shadow-sm transition-colors hover:border-primary hover:text-primary hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
+          >
+            Anterior
+          </button>
+          <span className="text-gray-600">
+            Pagina {currentPage} de {totalPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium shadow-sm transition-colors hover:border-primary hover:text-primary hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
+          >
+            Siguiente
+          </button>
+        </div>
         </div>
 
         {/* Panel de detalle */}
