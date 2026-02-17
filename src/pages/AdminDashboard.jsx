@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, BarChart3, Send, Plus, Bell, Edit2, Check, X, FileText, Download } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, getEstadoColor } from '../utils/helpers';
@@ -24,6 +24,7 @@ const AdminDashboard = () => {
   const [isMessagesDropdownClosing, setIsMessagesDropdownClosing] = useState(false);
   const [isDocsDropdownClosing, setIsDocsDropdownClosing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [openEstadoId, setOpenEstadoId] = useState(null);
   const messagesButtonRef = useRef(null);
   const messagesDropdownRef = useRef(null);
   const docsButtonRef = useRef(null);
@@ -97,6 +98,49 @@ const AdminDashboard = () => {
     updateSolicitudEstado(solicitudId, nuevoEstado);
   };
 
+  const estadosDisponibles = ['Pendiente', 'En Proceso', 'Aceptada', 'Rechazada'];
+
+  const renderEstadoSelector = (solicitud) => {
+    const estadoColors = getEstadoColor(solicitud.estado);
+    const isOpen = openEstadoId === solicitud.id;
+
+    return (
+      <div className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          data-estado-trigger="true"
+          onClick={() => setOpenEstadoId(prev => (prev === solicitud.id ? null : solicitud.id))}
+          className={`px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap inline-flex items-center gap-1 ${estadoColors.bg} ${estadoColors.text} hover:opacity-90 transition-opacity ring-1 ring-transparent hover:ring-primary/30`}
+          aria-haspopup="menu"
+          aria-expanded={isOpen}
+        >
+          <span>{solicitud.estado}</span>
+          <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+        </button>
+        {isOpen && (
+          <div
+            data-estado-menu="true"
+            className="absolute right-0 top-full mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50 animate-pop-in"
+          >
+            {estadosDisponibles.map(estado => (
+              <button
+                key={estado}
+                type="button"
+                onClick={() => {
+                  handleEstadoChange(solicitud.id, estado);
+                  setOpenEstadoId(null);
+                }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 ${estado === solicitud.estado ? 'font-semibold text-primary' : 'text-gray-700'}`}
+              >
+                {estado}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const getUserName = (userId) => {
     const usuario = usuarios.find(u => u.id === userId);
     if (usuario) return usuario.nombre;
@@ -155,6 +199,22 @@ const AdminDashboard = () => {
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [showMessagesDropdown, showDocsDropdown]);
+
+  useEffect(() => {
+    if (!openEstadoId) return;
+
+    const handleEstadoOutsideClick = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('[data-estado-trigger="true"]') || target.closest('[data-estado-menu="true"]')) {
+        return;
+      }
+      setOpenEstadoId(null);
+    };
+
+    document.addEventListener('mousedown', handleEstadoOutsideClick);
+    return () => document.removeEventListener('mousedown', handleEstadoOutsideClick);
+  }, [openEstadoId]);
 
   const handleLogout = async () => {
     const result = await Swal.fire({
@@ -567,7 +627,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Tabla de Solicitudes */}
-        <div className="bg-white rounded-xl shadow-md overflow-hidden hidden xl:block">
+        <div className="bg-white rounded-xl shadow-md hidden xl:block">
           <div className="overflow-x-auto xl:overflow-visible">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -578,20 +638,14 @@ const AdminDashboard = () => {
                   <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Proyecto
                   </th>
-                  <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Estado
+                  <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
+                    Documentos
                   </th>
                   <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">
                     Fecha de creación
                   </th>
-                  <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
-                    Documentos
-                  </th>
-                  <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden xl:table-cell">
-                    Cargo
-                  </th>
                   <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Acciones
+                    Estado
                   </th>
                 </tr>
               </thead>
@@ -601,13 +655,12 @@ const AdminDashboard = () => {
               >
                 {filteredSolicitudes.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-4 sm:px-6 py-8 text-center text-gray-500">
+                    <td colSpan="6" className="px-4 sm:px-6 py-8 text-center text-gray-500">
                       No hay solicitudes
                     </td>
                   </tr>
                 ) : (
                   pagedSolicitudes.map(solicitud => {
-                    const estadoColors = getEstadoColor(solicitud.estado);
                     const numDocs = documentos.filter(d => d.solicitudID === solicitud.id).length;
                     
                     return (
@@ -617,7 +670,12 @@ const AdminDashboard = () => {
                         onClick={() => setSelectedSolicitud(solicitud)}
                       >
                         <td className="px-4 lg:px-6 py-4 text-sm text-gray-900">
-                          {getUserName(solicitud.usuarioID)}
+                          <div className="font-medium text-gray-900">
+                            {getUserName(solicitud.usuarioID)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {solicitud.cargo || '-'}
+                          </div>
                         </td>
                         <td className="px-4 lg:px-6 py-4">
                           <div className="text-sm font-medium text-gray-900">{solicitud.proyecto}</div>
@@ -625,35 +683,14 @@ const AdminDashboard = () => {
                             {solicitud.comentarios}
                           </div>
                         </td>
-                        <td className="px-4 lg:px-6 py-4">
-                          <span className={`px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${estadoColors.bg} ${estadoColors.text}`}>
-                            {solicitud.estado}
-                          </span>
+                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden lg:table-cell whitespace-nowrap">
+                          {numDocs} documento{numDocs !== 1 ? 's' : ''}
                         </td>
                         <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 whitespace-nowrap hidden md:table-cell">
                           {formatDate(solicitud.fechaCreacion)}
                         </td>
-                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden lg:table-cell">
-                          {numDocs} documento{numDocs !== 1 ? 's' : ''}
-                        </td>
-                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden xl:table-cell">
-                          {solicitud.cargo || '-'}
-                        </td>
                         <td className="px-4 lg:px-6 py-4">
-                          <select
-                            value={solicitud.estado}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              handleEstadoChange(solicitud.id, e.target.value);
-                            }}
-                            className="text-sm px-2 py-1 border border-gray-200 rounded focus:outline-none focus:border-primary"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <option value="Pendiente">Pendiente</option>
-                            <option value="En Proceso">En Proceso</option>
-                            <option value="Aceptada">Aceptada</option>
-                            <option value="Rechazada">Rechazada</option>
-                          </select>
+                          {renderEstadoSelector(solicitud)}
                         </td>
                       </tr>
                     );
@@ -675,7 +712,6 @@ const AdminDashboard = () => {
             </div>
           ) : (
             pagedSolicitudes.map(solicitud => {
-              const estadoColors = getEstadoColor(solicitud.estado);
               const numDocs = documentos.filter(d => d.solicitudID === solicitud.id).length;
 
               return (
@@ -686,56 +722,34 @@ const AdminDashboard = () => {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs text-gray-500">Usuario</p>
+                      <p className="text-[11px] uppercase tracking-wider text-gray-400">Usuario</p>
                       <p className="text-sm font-semibold text-gray-900 truncate">{getUserName(solicitud.usuarioID)}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{solicitud.cargo || '-'}</p>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${estadoColors.bg} ${estadoColors.text}`}>
-                      {solicitud.estado}
-                    </span>
+                    {renderEstadoSelector(solicitud)}
                   </div>
 
                   <div className="mt-3">
-                    <p className="text-xs text-gray-500">Proyecto</p>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-[11px] uppercase tracking-wider text-gray-400">Proyecto</p>
+                    <p className="text-sm font-semibold text-gray-900">
                       {solicitud.proyecto}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                    <p className="text-xs text-gray-600 mt-1 line-clamp-2">
                       {solicitud.comentarios}
                     </p>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-gray-600">
+                  <div className="mt-3 grid grid-cols-1 gap-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-500">Fecha de creación</span>
-                      <span className="font-medium text-gray-700">{formatDate(solicitud.fechaCreacion)}</span>
+                      <span className="text-[11px] uppercase tracking-wider text-gray-400">Documentos</span>
+                      <span className="font-semibold text-gray-800">{numDocs}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-500">Documentos</span>
-                      <span className="font-medium text-gray-700">{numDocs}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-500">Cargo</span>
-                      <span className="font-medium text-gray-700">{solicitud.cargo || '-'}</span>
+                      <span className="text-[11px] uppercase tracking-wider text-gray-400">Fecha de creacion</span>
+                      <span className="font-semibold text-gray-800">{formatDate(solicitud.fechaCreacion)}</span>
                     </div>
                   </div>
 
-                  <div className="mt-4">
-                    <label className="block text-xs text-gray-500 mb-1">Acciones</label>
-                    <select
-                      value={solicitud.estado}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        handleEstadoChange(solicitud.id, e.target.value);
-                      }}
-                      className="w-full text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-primary"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <option value="Pendiente">Pendiente</option>
-                      <option value="En Proceso">En Proceso</option>
-                      <option value="Aceptada">Aceptada</option>
-                      <option value="Rechazada">Rechazada</option>
-                    </select>
-                  </div>
                 </div>
               );
             })
