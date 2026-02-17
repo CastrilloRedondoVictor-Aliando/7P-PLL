@@ -13,8 +13,8 @@ const SolicitudCard = ({ solicitud, isSelected, onClick }) => {
           : 'border-gray-200 bg-white hover:shadow-md'
       }`}
     >
-      <div className="flex justify-between items-start mb-2">
-        <h3 className="font-semibold text-gray-900">{solicitud.proyecto}</h3>
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-start mb-2">
+        <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{solicitud.proyecto}</h3>
         <span className={`text-xs px-2 py-1 rounded-full ${estadoColors.bg} ${estadoColors.text}`}>
           {solicitud.estado}
         </span>
@@ -24,7 +24,7 @@ const SolicitudCard = ({ solicitud, isSelected, onClick }) => {
         {solicitud.comentarios}
       </p>
       
-      <div className="flex items-center text-xs text-gray-500 space-x-4">
+      <div className="flex flex-wrap items-center text-xs text-gray-500 gap-3">
         <div className="flex items-center">
           <Calendar className="w-3 h-3 mr-1" />
           {formatDateShort(solicitud.fechaCreacion)}

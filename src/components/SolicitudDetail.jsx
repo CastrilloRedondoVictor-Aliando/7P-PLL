@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check } from 'lucide-react';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import { apiRequest } from '../config/api';
+import { useAuth } from '../hooks/useAuth';
 
 const SolicitudDetail = ({ 
   solicitud, 
@@ -11,8 +12,9 @@ const SolicitudDetail = ({
   onSendMessage,
   onUpdateDescripcion,
   currentUserId,
-  isUserView = false
+  isUserView = false,
 }) => {
+  const { getAccessToken } = useAuth();
   const [newMessage, setNewMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [pendingFiles, setPendingFiles] = useState([]);
@@ -20,7 +22,9 @@ const SolicitudDetail = ({
   const [nuevaDescripcion, setNuevaDescripcion] = useState('');
   const [usuarios, setUsuarios] = useState([]);
   const [selectedCategoria, setSelectedCategoria] = useState('General');
+  const [isSendBouncing, setIsSendBouncing] = useState(false);
   const fileInputRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const estadoColors = getEstadoColor(solicitud.estado);
 
   const categorias = ['General', 'Vuelos', 'Hoteles'];
@@ -36,6 +40,57 @@ const SolicitudDetail = ({
     };
     loadUsers();
   }, []);
+
+  useLayoutEffect(() => {
+    if (!messagesContainerRef.current) return;
+    const container = messagesContainerRef.current;
+    const rafId = requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [mensajes.length, solicitud?.id]);
+
+  // Unirse al grupo de SignalR cuando se visualiza una solicitud
+  useEffect(() => {
+    const joinSolicitudGroup = async () => {
+      if (solicitud?.id) {
+        try {
+          const token = await getAccessToken();
+          await apiRequest('/signalr/join-group', {
+            method: 'POST',
+            body: JSON.stringify({ solicitudID: solicitud.id }),
+            token
+          });
+          console.log(`📥 Usuario unido al grupo de solicitud ${solicitud.id}`);
+        } catch (error) {
+          console.error('Error uniéndose al grupo de SignalR:', error);
+        }
+      }
+    };
+
+    joinSolicitudGroup();
+
+    // Cleanup: salir del grupo cuando se desmonta o cambia de solicitud
+    return () => {
+      const leaveSolicitudGroup = async () => {
+        if (solicitud?.id) {
+          try {
+            const token = await getAccessToken();
+            await apiRequest('/signalr/leave-group', {
+              method: 'POST',
+              body: JSON.stringify({ solicitudID: solicitud.id }),
+              token
+            });
+            console.log(`📤 Usuario salió del grupo de solicitud ${solicitud.id}`);
+          } catch (error) {
+            console.error('Error saliendo del grupo de SignalR:', error);
+          }
+        }
+      };
+      leaveSolicitudGroup();
+    };
+  }, [solicitud?.id, getAccessToken]);
+
 
   const handleFileSelect = (files) => {
     if (files && files.length > 0) {
@@ -102,6 +157,8 @@ const SolicitudDetail = ({
     if (newMessage.trim()) {
       onSendMessage(newMessage);
       setNewMessage('');
+      setIsSendBouncing(true);
+      setTimeout(() => setIsSendBouncing(false), 220);
     }
   };
 
@@ -130,11 +187,11 @@ const SolicitudDetail = ({
   return (
     <div className="bg-white rounded-xl shadow-lg overflow-hidden">
       {/* Cabecera */}
-      <div className="bg-gradient-to-r from-primary to-blue-600 text-white p-6">
-        <div className="flex justify-between items-start">
+      <div className="bg-gradient-to-r from-primary to-blue-600 text-white p-4 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
           <div>
-            <h2 className="text-2xl font-bold mb-2">{solicitud.proyecto}</h2>
-            <div className="flex items-center space-x-4 text-blue-100 text-sm">
+            <h2 className="text-xl sm:text-2xl font-bold mb-2">{solicitud.proyecto}</h2>
+            <div className="flex flex-wrap items-center gap-3 text-blue-100 text-sm">
               <span className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1" />
                 {formatDate(solicitud.fechaCreacion)}
@@ -149,7 +206,7 @@ const SolicitudDetail = ({
       </div>
 
       {/* Contenido */}
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         {/* Comentarios */}
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -206,7 +263,7 @@ const SolicitudDetail = ({
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-lg p-8 mb-3 transition-all cursor-pointer ${
+              className={`border-2 border-dashed rounded-lg p-5 sm:p-8 mb-3 transition-all cursor-pointer ${
                 isDragging
                   ? 'border-primary bg-blue-50'
                   : 'border-gray-300 bg-gray-50 hover:border-primary hover:bg-blue-50'
@@ -265,7 +322,7 @@ const SolicitudDetail = ({
                   </div>
                 ))}
               </div>
-              <div className="flex space-x-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={confirmUpload}
                   className="flex-1 flex items-center justify-center space-x-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
@@ -452,7 +509,10 @@ const SolicitudDetail = ({
           </h3>
           
           {/* Mensajes */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-3 max-h-96 overflow-y-auto space-y-3">
+          <div
+            ref={messagesContainerRef}
+            className="bg-gray-50 rounded-lg p-4 mb-3 max-h-96 overflow-y-auto space-y-3 smooth-scroll"
+          >
             {mensajes.length === 0 ? (
               <p className="text-gray-500 text-center py-4">No hay mensajes</p>
             ) : (
@@ -464,7 +524,7 @@ const SolicitudDetail = ({
                     className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[70%] rounded-lg p-3 ${
+                      className={`max-w-[70%] rounded-lg p-3 animate-fade-in-up ${
                         isCurrentUser
                           ? 'bg-primary text-white'
                           : 'bg-white border border-gray-200'
@@ -489,7 +549,7 @@ const SolicitudDetail = ({
           </div>
 
           {/* Input de nuevo mensaje */}
-          <div className="flex space-x-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={newMessage}
@@ -501,7 +561,9 @@ const SolicitudDetail = ({
             <button
               onClick={handleSendMessage}
               disabled={!newMessage.trim()}
-              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className={`bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed ${
+                isSendBouncing ? 'animate-bounce-once' : ''
+              }`}
             >
               <Send className="w-5 h-5" />
             </button>

@@ -17,13 +17,13 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 px-4">
+      <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl max-w-md w-full">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-full mb-4">
             <LogIn className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">7P-PLL</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">7P-PLL</h1>
           <p className="text-gray-600 mt-2">Portal de Gestión de Solicitudes</p>
         </div>
 

@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMsal } from '@azure/msal-react';
+import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import Swal from 'sweetalert2';
-import { AuthContext } from './AuthContextDefinition';
+import {AuthContext } from './AuthContextDefinition';
 import { apiRequest } from '../config/api';
 import { loginRequest } from '../config/msalConfig';
 
@@ -17,6 +18,8 @@ export const AuthProvider = ({ children }) => {
   const [mensajes, setMensajes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isSignalRConnected, setIsSignalRConnected] = useState(false);
+  const connectionRef = useRef(null);
 
   // Sincronizar con sessionStorage cuando cambie el usuario
   useEffect(() => {
@@ -42,6 +45,7 @@ export const AuthProvider = ({ children }) => {
     } else if (!user && !isInitializing) {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isInitializing]);
 
   // Función auxiliar para obtener el token de acceso
@@ -84,6 +88,10 @@ export const AuthProvider = ({ children }) => {
       });
       
       setUser(data.user);
+      
+      // Inicializar conexión SignalR después del login exitoso
+      await initializeSignalR();
+      
       return true;
     } catch (error) {
       console.error('Error sincronizando usuario:', error);
@@ -97,6 +105,87 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Inicializar conexión SignalR (usando @microsoft/signalr con Azure SignalR Service)
+  const initializeSignalR = async () => {
+    try {
+      if (connectionRef.current) {
+        console.log('⚠️ Conexión SignalR ya existe, cerrando anterior...');
+        await connectionRef.current.stop();
+        connectionRef.current = null;
+      }
+
+      const token = await getAccessToken();
+      
+      // Obtener URL y token de SignalR desde el backend
+      const negotiateResponse = await apiRequest('/signalr/negotiate', {
+        method: 'POST',
+        token
+      });
+
+      console.log('🔑 Token de SignalR obtenido, iniciando conexión...');
+
+      // Crear conexión SignalR usando Microsoft SignalR client
+      const connection = new HubConnectionBuilder()
+        .withUrl(negotiateResponse.url, {
+          accessTokenFactory: () => negotiateResponse.accessToken
+        })
+        .withAutomaticReconnect([0, 2000, 10000, 30000])
+        .configureLogging(LogLevel.Information)
+        .build();
+
+      // Event: Recibir mensaje nuevo
+      connection.on('ReceiveMessage', (mensaje) => {
+        console.log('📩 Mensaje recibido en tiempo real:', mensaje);
+        setMensajes(prev => {
+          // Evitar duplicados
+          const exists = prev.some(m => m.id === mensaje.id);
+          if (exists) return prev;
+          return [...prev, mensaje];
+        });
+      });
+
+      // Event: Reconectando
+      connection.onreconnecting(error => {
+        console.warn('🔄 SignalR reconectando...', error);
+        setIsSignalRConnected(false);
+      });
+
+      // Event: Reconectado
+      connection.onreconnected(connectionId => {
+        console.log('✅ SignalR reconectado:', connectionId);
+        setIsSignalRConnected(true);
+      });
+
+      // Event: Conexión cerrada
+      connection.onclose(error => {
+        console.error('❌ SignalR desconectado:', error);
+        setIsSignalRConnected(false);
+      });
+
+      // Iniciar conexión
+      await connection.start();
+      console.log('✅ Conexión SignalR establecida');
+      
+      connectionRef.current = connection;
+      setIsSignalRConnected(true);
+    } catch (error) {
+      console.error('❌ Error inicializando SignalR:', error);
+      setIsSignalRConnected(false);
+    }
+  };
+
+  // Cleanup: Cerrar conexión SignalR al desmontar
+  useEffect(() => {
+    return () => {
+      if (connectionRef.current) {
+        console.log('🗑️ Cerrando conexión SignalR...');
+        connectionRef.current.stop();
+        connectionRef.current = null;
+      }
+    };
   }, []);
 
   const loadData = async () => {
@@ -204,30 +293,36 @@ export const AuthProvider = ({ children }) => {
   };
 
   const sendMessage = async (solicitudID, contenido) => {
-    const newMessage = {
-      solicitudID,
-      usuarioID: user.id,
-      texto: contenido,
-      rol: user.rol
-    };
-
     try {
       const token = await getAccessToken();
-      const data = await apiRequest('/mensajes', {
+      
+      const data = await apiRequest('/signalr/send-message', {
         method: 'POST',
-        body: JSON.stringify(newMessage),
+        body: JSON.stringify({
+          solicitudID,
+          texto: contenido,
+          rol: user.rol
+        }),
         token
       });
-      
-      setMensajes([...mensajes, data]);
+
+      setMensajes(prev => {
+        const exists = prev.some(m => m.id === data.id);
+        if (exists) return prev;
+        return [...prev, data];
+      });
+
+      console.log('✅ Mensaje enviado:', data);
+      return data;
     } catch (error) {
+      console.error('❌ Error enviando mensaje:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'No se pudo enviar el mensaje',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error enviando mensaje:', error);
+      throw error;
     }
   };
 
@@ -557,6 +652,8 @@ export const AuthProvider = ({ children }) => {
     documentos,
     mensajes,
     loading,
+    isSignalRConnected,
+    signalRConnection: connectionRef.current,
     login,
     logout,
     uploadDocument,

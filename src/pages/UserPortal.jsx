@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LogOut, Search, Plus, Bell } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
@@ -7,12 +7,17 @@ import SolicitudDetail from '../components/SolicitudDetail';
 import CreateSolicitudModalUser from '../components/CreateSolicitudModalUser';
 
 const UserPortal = () => {
-  const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage, createSolicitud, markMessagesAsRead, updateSolicitudDescripcion } = useAuth();
+  const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage, createSolicitud, markMessagesAsRead, updateSolicitudDescripcion, signalRConnection } = useAuth();
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [isNotificationsDropdownClosing, setIsNotificationsDropdownClosing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const notificationsButtonRef = useRef(null);
+  const notificationsDropdownRef = useRef(null);
+  const itemsPerPage = 5;
 
   // Filtrar solicitudes del usuario actual
   const userSolicitudes = solicitudes.filter(s => s.usuarioID === user.id);
@@ -39,6 +44,12 @@ const UserPortal = () => {
     return matchesSearch && matchesFilter;
   }).sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
 
+  const totalPages = Math.max(1, Math.ceil(filteredSolicitudes.length / itemsPerPage));
+  const pagedSolicitudes = filteredSolicitudes.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   // Documentos y mensajes de la solicitud seleccionada
   const solicitudDocumentos = selectedSolicitud 
     ? documentos.filter(d => d.solicitudID === selectedSolicitud.id)
@@ -53,6 +64,26 @@ const UserPortal = () => {
       markMessagesAsRead(selectedSolicitud.id);
     }
   }, [selectedSolicitud, markMessagesAsRead]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterEstado, userSolicitudes.length]);
+
+  useEffect(() => {
+    if (!showNotificationsDropdown) return;
+
+    const handleOutsideClick = (event) => {
+      const target = event.target;
+      const isInside = notificationsDropdownRef.current?.contains(target) ||
+        notificationsButtonRef.current?.contains(target);
+      if (!isInside) {
+        closeNotificationsDropdown();
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showNotificationsDropdown]);
 
   const handleLogout = async () => {
     const result = await Swal.fire({
@@ -104,20 +135,42 @@ const UserPortal = () => {
     });
   };
 
+  const openNotificationsDropdown = () => {
+    setShowNotificationsDropdown(true);
+    setIsNotificationsDropdownClosing(false);
+  };
+
+  const closeNotificationsDropdown = () => {
+    if (!showNotificationsDropdown || isNotificationsDropdownClosing) return;
+    setIsNotificationsDropdownClosing(true);
+    setTimeout(() => {
+      setShowNotificationsDropdown(false);
+      setIsNotificationsDropdownClosing(false);
+    }, 160);
+  };
+
+  const toggleNotificationsDropdown = () => {
+    if (showNotificationsDropdown && !isNotificationsDropdownClosing) {
+      closeNotificationsDropdown();
+    } else {
+      openNotificationsDropdown();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
       <header className="bg-primary text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
             <div>
               <h1 className="text-2xl font-bold">7P-PLL</h1>
               <p className="text-blue-200 text-sm">Portal de Usuario</p>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:space-x-4">
               <button
                 onClick={() => setIsCreateModalOpen(true)}
-                className="bg-white text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-2 font-semibold shadow-md"
+                className="bg-white text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center"
               >
                 <Plus className="w-5 h-5" />
                 <span>Nueva Solicitud</span>
@@ -126,7 +179,8 @@ const UserPortal = () => {
               {/* Badge de notificaciones */}
               <div className="relative">
                 <button 
-                  onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+                  ref={notificationsButtonRef}
+                  onClick={toggleNotificationsDropdown}
                   className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
                   title="Mensajes sin leer"
                 >
@@ -140,7 +194,12 @@ const UserPortal = () => {
                 
                 {/* Dropdown de notificaciones */}
                 {showNotificationsDropdown && (
-                  <div className="absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
+                  <div
+                    ref={notificationsDropdownRef}
+                    className={`absolute left-1/2 -translate-x-1/2 top-12 w-[92vw] sm:w-80 sm:left-auto sm:right-0 sm:translate-x-0 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[80vh] overflow-y-auto ${
+                      isNotificationsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
+                    }`}
+                  >
                     <div className="p-3 border-b border-gray-200 bg-gray-50">
                       <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
                     </div>
@@ -177,7 +236,7 @@ const UserPortal = () => {
                 )}
               </div>
               
-              <div className="text-right">
+              <div className="text-left sm:text-right">
                 <p className="font-semibold">{user.name}</p>
                 <p className="text-blue-200 text-sm">{user.email}</p>
               </div>
@@ -193,11 +252,11 @@ const UserPortal = () => {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Panel de Solicitudes */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Mis Solicitudes</h2>
               
               {/* Búsqueda */}
@@ -226,11 +285,11 @@ const UserPortal = () => {
               </select>
 
               {/* Lista de Solicitudes */}
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              <div className="space-y-3 animate-fade-in-up" key={`user-page-${currentPage}`}>
                 {filteredSolicitudes.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">No hay solicitudes</p>
                 ) : (
-                  filteredSolicitudes.map(solicitud => (
+                  pagedSolicitudes.map(solicitud => (
                     <SolicitudCard
                       key={solicitud.id}
                       solicitud={solicitud}
@@ -240,6 +299,28 @@ const UserPortal = () => {
                   ))
                 )}
               </div>
+
+              {filteredSolicitudes.length > itemsPerPage && (
+                <div className="mt-4 flex items-center justify-between text-sm">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium shadow-sm transition-colors hover:border-primary hover:text-primary hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  >
+                    Anterior
+                  </button>
+                  <span className="text-gray-600">
+                    Pagina {currentPage} de {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 font-medium shadow-sm transition-colors hover:border-primary hover:text-primary hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -255,11 +336,12 @@ const UserPortal = () => {
                 onUpdateDescripcion={handleUpdateDescripcion}
                 currentUserId={user.id}
                 isUserView={true}
+                signalRConnection={signalRConnection}
               />
             ) : (
-              <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+              <div className="bg-white rounded-xl shadow-lg p-8 sm:p-12 text-center">
                 <div className="text-gray-400">
-                  <Search className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <Search className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 opacity-50" />
                   <p className="text-lg">Selecciona una solicitud para ver los detalles</p>
                 </div>
               </div>
