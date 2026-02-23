@@ -69,7 +69,6 @@ const CreateSolicitudModalUser = ({ isOpen, onClose, onCreate }) => {
       className={`fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 ${
         isClosing ? 'animate-fade-out' : 'animate-fade-in'
       }`}
-      onMouseDown={requestClose}
       onClick={requestClose}
     >
       <div

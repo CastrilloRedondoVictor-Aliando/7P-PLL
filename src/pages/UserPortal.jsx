@@ -167,86 +167,92 @@ const UserPortal = () => {
               <h1 className="text-2xl font-bold">7P-PLL</h1>
               <p className="text-blue-200 text-sm">Portal de Usuario</p>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:space-x-4">
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="bg-white text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center"
-              >
-                <Plus className="w-5 h-5" />
-                <span>Nueva Solicitud</span>
-              </button>
-              
-              {/* Badge de notificaciones */}
-              <div className="relative">
-                <button 
-                  ref={notificationsButtonRef}
-                  onClick={toggleNotificationsDropdown}
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                  title="Mensajes sin leer"
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:space-x-4">
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                <button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="bg-white text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center"
                 >
-                  <Bell className="w-5 h-5" />
+                  <Plus className="w-5 h-5" />
+                  <span>Nueva Solicitud</span>
                 </button>
-                {unreadMessages > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {unreadMessages}
-                  </span>
-                )}
                 
-                {/* Dropdown de notificaciones */}
-                {showNotificationsDropdown && (
-                  <div
-                    ref={notificationsDropdownRef}
-                    className={`absolute left-1/2 -translate-x-1/2 top-12 w-[92vw] sm:w-80 sm:left-auto sm:right-0 sm:translate-x-0 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[80vh] overflow-y-auto ${
-                      isNotificationsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
-                    }`}
+                {/* Badge de mensajes no leídos (solo escritorio) */}
+                <div className="relative hidden xl:block">
+                  <button 
+                    ref={notificationsButtonRef}
+                    onClick={toggleNotificationsDropdown}
+                    className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                    title="Mensajes sin leer"
                   >
-                    <div className="p-3 border-b border-gray-200 bg-gray-50">
-                      <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
-                    </div>
-                    {solicitudesWithUnreadMessages.length === 0 ? (
-                      <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
-                    ) : (
-                      solicitudesWithUnreadMessages.map(sol => {
-                        const unreadCount = mensajes.filter(m => 
-                          m.solicitudID === sol.id && !m.leido && m.usuarioID !== user.id
-                        ).length;
-                        return (
-                          <div
-                            key={sol.id}
-                            onClick={() => {
-                              setSelectedSolicitud(sol);
-                              setShowNotificationsDropdown(false);
-                            }}
-                            className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                          >
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
-                                <p className="text-xs text-gray-600 mt-1">Estado: {sol.estado}</p>
+                    <Bell className="w-5 h-5" />
+                  </button>
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {unreadMessages}
+                    </span>
+                  )}
+                  
+                  {/* Dropdown de notificaciones */}
+                  {showNotificationsDropdown && (
+                    <div
+                      ref={notificationsDropdownRef}
+                      className={`absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
+                        isNotificationsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
+                      }`}
+                    >
+                      <div className="p-3 border-b border-gray-200 bg-gray-50">
+                        <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
+                      </div>
+                      {solicitudesWithUnreadMessages.length === 0 ? (
+                        <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
+                      ) : (
+                        solicitudesWithUnreadMessages.map(sol => {
+                          const unreadCount = mensajes.filter(m => 
+                            m.solicitudID === sol.id && !m.leido && m.usuarioID !== user.id
+                          ).length;
+                          return (
+                            <div
+                              key={sol.id}
+                              onClick={() => {
+                                setSelectedSolicitud(sol);
+                                setShowNotificationsDropdown(false);
+                              }}
+                              className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
+                                  <p className="text-xs text-gray-600 mt-1">Estado: {sol.estado}</p>
+                                </div>
+                                <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
+                                  {unreadCount}
+                                </span>
                               </div>
-                              <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
-                                {unreadCount}
-                              </span>
                             </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-              
-              <div className="text-left sm:text-right">
-                <p className="font-semibold">{user.name}</p>
-                <p className="text-blue-200 text-sm">{user.email}</p>
+
+              <div className="flex items-center justify-between gap-3 sm:justify-start w-full sm:w-auto">
+                <div className="text-left sm:text-right min-w-0">
+                  <p className="font-semibold">{user.name}</p>
+                  <p className="text-blue-200 text-sm break-all sm:break-normal max-w-[70vw] sm:max-w-none">
+                    {user.email}
+                  </p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                  title="Cerrar sesión"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                onClick={handleLogout}
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                title="Cerrar sesión"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
             </div>
           </div>
         </div>
@@ -279,7 +285,7 @@ const UserPortal = () => {
               >
                 <option value="Todos">Todos los estados</option>
                 <option value="Pendiente">Pendiente</option>
-                <option value="En Proceso">En Proceso</option>
+                <option value="Documentación pendiente">Documentación pendiente</option>
                 <option value="Aceptada">Aceptada</option>
                 <option value="Rechazada">Rechazada</option>
               </select>

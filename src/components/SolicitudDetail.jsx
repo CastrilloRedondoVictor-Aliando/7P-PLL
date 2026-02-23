@@ -33,14 +33,15 @@ const SolicitudDetail = ({
   useEffect(() => {
     const loadUsers = async () => {
       try {
-        const data = await apiRequest('/auth/users');
+        const token = await getAccessToken();
+        const data = await apiRequest('/auth/users', { token });
         setUsuarios(data);
       } catch (error) {
         console.error('Error cargando usuarios:', error);
       }
     };
     loadUsers();
-  }, []);
+  }, [getAccessToken]);
 
   useLayoutEffect(() => {
     if (!messagesContainerRef.current) return;
@@ -227,7 +228,11 @@ const SolicitudDetail = ({
             <div className="flex flex-wrap items-center gap-3 text-blue-100 text-sm">
               <span className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1" />
-                {formatDate(solicitud.fechaCreacion)}
+                Inicio: {solicitud.fechaInicio ? formatDate(solicitud.fechaInicio) : 'Sin fecha'}
+              </span>
+              <span className="flex items-center">
+                <Calendar className="w-4 h-4 mr-1" />
+                Fin: {solicitud.fechaFin ? formatDate(solicitud.fechaFin) : 'Sin fecha'}
               </span>
               <span>ID: {solicitud.id}</span>
             </div>

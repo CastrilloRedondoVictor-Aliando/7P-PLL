@@ -2,14 +2,16 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
+import { apiRequest } from '../config/api';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import CreateSolicitudModal from '../components/CreateSolicitudModal';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudTitulo, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, getUsers, getDocumentDownloadUrl, deleteDocument } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudTitulo, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, getUsers, getDocumentDownloadUrl, deleteDocument, getAccessToken } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterUsuario, setFilterUsuario] = useState('Todos');
+  const [filterFecha, setFilterFecha] = useState('');
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -29,6 +31,7 @@ const AdminDashboard = () => {
   const messagesDropdownRef = useRef(null);
   const docsButtonRef = useRef(null);
   const docsDropdownRef = useRef(null);
+  const joinedGroupsRef = useRef(new Set());
   const itemsPerPage = 10;
 
   // Cargar usuarios al montar el componente
@@ -76,7 +79,17 @@ const AdminDashboard = () => {
                          s.comentarios.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterEstado === 'Todos' || s.estado === filterEstado;
     const matchesUser = filterUsuario === 'Todos' || s.usuarioID === parseInt(filterUsuario);
-    return matchesSearch && matchesFilter && matchesUser;
+    const targetDate = filterFecha ? new Date(filterFecha) : null;
+    if (targetDate) {
+      targetDate.setHours(0, 0, 0, 0);
+    }
+    const startDate = s.fechaInicio ? new Date(s.fechaInicio) : null;
+    const endDate = s.fechaFin ? new Date(s.fechaFin) : null;
+    if (startDate) startDate.setHours(0, 0, 0, 0);
+    if (endDate) endDate.setHours(0, 0, 0, 0);
+    const matchesDate = !targetDate || (startDate && endDate && startDate <= targetDate && endDate >= targetDate);
+
+    return matchesSearch && matchesFilter && matchesUser && matchesDate;
   }).sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
 
   const totalPages = Math.max(1, Math.ceil(filteredSolicitudes.length / itemsPerPage));
@@ -90,7 +103,7 @@ const AdminDashboard = () => {
   const stats = {
     total: solicitudes.length,
     pendientes: solicitudes.filter(s => s.estado === 'Pendiente').length,
-    enProceso: solicitudes.filter(s => s.estado === 'En Proceso').length,
+    enProceso: solicitudes.filter(s => s.estado === 'Documentación pendiente').length,
     completadas: solicitudes.filter(s => s.estado === 'Aceptada').length,
     rechazadas: solicitudes.filter(s => s.estado === 'Rechazada').length,
   };
@@ -98,7 +111,7 @@ const AdminDashboard = () => {
   const estadoFiltroStyles = {
     Todos: { hover: 'hover:bg-blue-50', selected: 'bg-blue-50 ring-1 ring-blue-100' },
     Pendiente: { hover: 'hover:bg-yellow-50', selected: 'bg-yellow-50 ring-1 ring-yellow-100' },
-    'En Proceso': { hover: 'hover:bg-blue-50', selected: 'bg-blue-50 ring-1 ring-blue-100' },
+    'Documentación pendiente': { hover: 'hover:bg-blue-50', selected: 'bg-blue-50 ring-1 ring-blue-100' },
     Aceptada: { hover: 'hover:bg-green-50', selected: 'bg-green-50 ring-1 ring-green-100' },
     Rechazada: { hover: 'hover:bg-red-50', selected: 'bg-red-50 ring-1 ring-red-100' }
   };
@@ -115,20 +128,20 @@ const AdminDashboard = () => {
     updateSolicitudEstado(solicitudId, nuevoEstado);
   };
 
-  const estadosDisponibles = ['Pendiente', 'En Proceso', 'Aceptada', 'Rechazada'];
+  const estadosDisponibles = ['Pendiente', 'Documentación pendiente', 'Aceptada', 'Rechazada'];
 
   const renderEstadoSelector = (solicitud) => {
     const estadoColors = getEstadoColor(solicitud.estado);
     const isOpen = openEstadoId === solicitud.id;
     const estadoItemStyles = {
       Pendiente: 'hover:bg-yellow-50',
-      'En Proceso': 'hover:bg-blue-50',
+      'Documentación pendiente': 'hover:bg-blue-50',
       Aceptada: 'hover:bg-green-50',
       Rechazada: 'hover:bg-red-50'
     };
     const estadoSelectedStyles = {
       Pendiente: 'bg-yellow-50 text-yellow-700',
-      'En Proceso': 'bg-blue-50 text-blue-700',
+      'Documentación pendiente': 'bg-blue-50 text-blue-700',
       Aceptada: 'bg-green-50 text-green-700',
       Rechazada: 'bg-red-50 text-red-700'
     };
@@ -203,8 +216,54 @@ const AdminDashboard = () => {
   }, [selectedSolicitud, markMessagesAsRead]);
 
   useEffect(() => {
+    const joinAllGroups = async () => {
+      if (!solicitudes.length) return;
+      try {
+        const token = await getAccessToken();
+        const joinPromises = solicitudes.map(async (sol) => {
+          if (joinedGroupsRef.current.has(sol.id)) return;
+          await apiRequest('/signalr/join-group', {
+            method: 'POST',
+            body: JSON.stringify({ solicitudID: sol.id }),
+            token
+          });
+          joinedGroupsRef.current.add(sol.id);
+          console.log(`📥 Admin unido al grupo de solicitud ${sol.id}`);
+        });
+        await Promise.all(joinPromises);
+      } catch (error) {
+        console.error('Error uniéndose a grupos de SignalR (admin):', error);
+      }
+    };
+
+    joinAllGroups();
+
+    return () => {
+      const leaveAllGroups = async () => {
+        if (joinedGroupsRef.current.size === 0) return;
+        try {
+          const token = await getAccessToken();
+          const leavePromises = Array.from(joinedGroupsRef.current).map(async (solicitudID) => {
+            await apiRequest('/signalr/leave-group', {
+              method: 'POST',
+              body: JSON.stringify({ solicitudID }),
+              token
+            });
+            console.log(`📤 Admin salió del grupo de solicitud ${solicitudID}`);
+          });
+          await Promise.all(leavePromises);
+          joinedGroupsRef.current.clear();
+        } catch (error) {
+          console.error('Error saliendo de grupos de SignalR (admin):', error);
+        }
+      };
+      leaveAllGroups();
+    };
+  }, [solicitudes, getAccessToken]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterEstado, filterUsuario, solicitudes.length]);
+  }, [searchTerm, filterEstado, filterUsuario, filterFecha, solicitudes.length]);
 
   useEffect(() => {
     if (!showMessagesDropdown && !showDocsDropdown) return;
@@ -603,14 +662,14 @@ const AdminDashboard = () => {
           <button
             type="button"
             onClick={() => {
-              setFilterEstado('En Proceso');
+              setFilterEstado('Documentación pendiente');
               setCurrentPage(1);
             }}
-            className={`relative overflow-hidden rounded-xl shadow-md p-4 sm:p-6 text-left transition-colors hover:shadow-lg ${estadoFiltroStyles['En Proceso'].hover} ${filterEstado === 'En Proceso' ? estadoFiltroStyles['En Proceso'].selected : 'bg-white'}`}
-            aria-label="Filtrar solicitudes en proceso"
+            className={`relative overflow-hidden rounded-xl shadow-md p-4 sm:p-6 text-left transition-colors hover:shadow-lg ${estadoFiltroStyles['Documentación pendiente'].hover} ${filterEstado === 'Documentación pendiente' ? estadoFiltroStyles['Documentación pendiente'].selected : 'bg-white'}`}
+            aria-label="Filtrar solicitudes con documentación pendiente"
           >
             <div className="relative z-10">
-              <p className="text-gray-600 text-xs sm:text-sm">Solicitudes En Proceso</p>
+              <p className="text-gray-600 text-xs sm:text-sm">Documentación pendiente</p>
               <p className="text-2xl sm:text-3xl font-bold text-blue-600">{stats.enProceso}</p>
             </div>
             <Clock className="absolute -right-5 -bottom-5 w-20 h-20 sm:w-24 sm:h-24 text-blue-600 opacity-15" />
@@ -651,7 +710,7 @@ const AdminDashboard = () => {
 
         {/* Filtros */}
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <select
               value={filterUsuario}
               onChange={(e) => setFilterUsuario(e.target.value)}
@@ -680,6 +739,15 @@ const AdminDashboard = () => {
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
               />
             </div>
+
+            <div>
+              <input
+                type="date"
+                value={filterFecha}
+                onChange={(e) => setFilterFecha(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+              />
+            </div>
           </div>
         </div>
 
@@ -699,7 +767,7 @@ const AdminDashboard = () => {
                     Documentos
                   </th>
                   <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">
-                    Fecha de creación
+                    Fechas
                   </th>
                   <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Estado
@@ -708,7 +776,7 @@ const AdminDashboard = () => {
               </thead>
               <tbody
                 className="divide-y divide-gray-200 animate-fade-in-up"
-                key={`table-page-${currentPage}-${filterEstado}-${filterUsuario}-${searchTerm}`}
+                key={`table-page-${currentPage}-${filterEstado}-${filterUsuario}-${filterFecha}-${searchTerm}`}
               >
                 {filteredSolicitudes.length === 0 ? (
                   <tr>
@@ -744,7 +812,8 @@ const AdminDashboard = () => {
                           {numDocs} documento{numDocs !== 1 ? 's' : ''}
                         </td>
                         <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 whitespace-nowrap hidden md:table-cell">
-                          {formatDate(solicitud.fechaCreacion)}
+                          <div>Inicio: {solicitud.fechaInicio ? formatDate(solicitud.fechaInicio) : 'Sin fecha'}</div>
+                          <div>Fin: {solicitud.fechaFin ? formatDate(solicitud.fechaFin) : 'Sin fecha'}</div>
                         </td>
                         <td className="px-4 lg:px-6 py-4">
                           {renderEstadoSelector(solicitud)}
@@ -761,7 +830,7 @@ const AdminDashboard = () => {
         {/* Cards de Solicitudes (movil) */}
         <div
           className="xl:hidden space-y-4 animate-fade-in-up"
-          key={`cards-page-${currentPage}-${filterEstado}-${filterUsuario}-${searchTerm}`}
+          key={`cards-page-${currentPage}-${filterEstado}-${filterUsuario}-${filterFecha}-${searchTerm}`}
         >
           {filteredSolicitudes.length === 0 ? (
             <div className="bg-white rounded-xl shadow-md p-6 text-center text-gray-500">
@@ -802,8 +871,12 @@ const AdminDashboard = () => {
                       <span className="font-semibold text-gray-800">{numDocs}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] uppercase tracking-wider text-gray-400">Fecha de creacion</span>
-                      <span className="font-semibold text-gray-800">{formatDate(solicitud.fechaCreacion)}</span>
+                      <span className="text-[11px] uppercase tracking-wider text-gray-400">Fecha de inicio</span>
+                      <span className="font-semibold text-gray-800">{solicitud.fechaInicio ? formatDate(solicitud.fechaInicio) : 'Sin fecha'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] uppercase tracking-wider text-gray-400">Fecha de fin</span>
+                      <span className="font-semibold text-gray-800">{solicitud.fechaFin ? formatDate(solicitud.fechaFin) : 'Sin fecha'}</span>
                     </div>
                   </div>
 

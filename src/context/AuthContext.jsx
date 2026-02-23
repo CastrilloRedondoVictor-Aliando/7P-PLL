@@ -48,8 +48,16 @@ export const AuthProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isInitializing]);
 
+  useEffect(() => {
+    if (!user || isInitializing) return;
+    if (accounts.length === 0) return;
+    if (connectionRef.current) return;
+    initializeSignalR();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isInitializing, accounts.length]);
+
   // Función auxiliar para obtener el token de acceso
-  const getAccessToken = async () => {
+  const getAccessToken = useCallback(async () => {
     if (accounts.length === 0) {
       throw new Error('No hay cuenta autenticada');
     }
@@ -71,7 +79,7 @@ export const AuthProvider = ({ children }) => {
         throw popupError;
       }
     }
-  };
+  }, [accounts, instance]);
 
   // Manejar login exitoso de MSAL - sincronizar con backend
   const handleLoginSuccess = useCallback(async (accessToken = null) => {
@@ -105,8 +113,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [getAccessToken]);
 
   // Inicializar conexión SignalR (usando @microsoft/signalr con Azure SignalR Service)
   const initializeSignalR = async () => {
@@ -412,7 +419,7 @@ export const AuthProvider = ({ children }) => {
       
       const estadoTexto = {
         'Aceptada': '¡Solicitud aceptada!',
-        'En Proceso': 'Solicitud en proceso',
+        'Documentación pendiente': 'Documentación pendiente',
         'Rechazada': 'Solicitud rechazada',
         'Pendiente': 'Solicitud pendiente'
       };
@@ -420,7 +427,7 @@ export const AuthProvider = ({ children }) => {
       const estadoIcono = {
         'Aceptada': 'success',
         'Rechazada': 'error',
-        'En Proceso': 'info',
+        'Documentación pendiente': 'info',
         'Pendiente': 'warning'
       };
       
@@ -697,6 +704,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     isSignalRConnected,
     signalRConnection: connectionRef.current,
+    getAccessToken,
     login,
     logout,
     uploadDocument,

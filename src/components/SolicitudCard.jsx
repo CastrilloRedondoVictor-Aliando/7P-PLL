@@ -27,7 +27,11 @@ const SolicitudCard = ({ solicitud, isSelected, onClick }) => {
       <div className="flex flex-wrap items-center text-xs text-gray-500 gap-3">
         <div className="flex items-center">
           <Calendar className="w-3 h-3 mr-1" />
-          {formatDateShort(solicitud.fechaCreacion)}
+          Inicio: {solicitud.fechaInicio ? formatDateShort(solicitud.fechaInicio) : 'Sin fecha'}
+        </div>
+        <div className="flex items-center">
+          <Calendar className="w-3 h-3 mr-1" />
+          Fin: {solicitud.fechaFin ? formatDateShort(solicitud.fechaFin) : 'Sin fecha'}
         </div>
         <div className="flex items-center">
           <FileText className="w-3 h-3 mr-1" />
