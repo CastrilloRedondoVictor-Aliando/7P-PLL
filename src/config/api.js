@@ -8,14 +8,21 @@ export const apiRequest = async (endpoint, options = {}) => {
   // Extraer token de options si existe
   const { token, ...fetchOptions } = options;
   
+  const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData;
+  const baseHeaders = {
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+    ...fetchOptions.headers
+  };
+
   const config = {
     credentials: 'include', // Importante para CORS con credenciales
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }), // Agregar token si existe
-      ...fetchOptions.headers,
-    },
-    ...fetchOptions,
+    headers: isFormData
+      ? baseHeaders
+      : {
+          'Content-Type': 'application/json',
+          ...baseHeaders
+        },
+    ...fetchOptions
   };
 
   try {

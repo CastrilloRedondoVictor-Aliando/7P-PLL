@@ -28,7 +28,8 @@ CREATE TABLE Documentos (
     solicitudID INT NOT NULL,
     nombre NVARCHAR(200) NOT NULL,
     tipo NVARCHAR(50) NOT NULL,
-    url NVARCHAR(500) NOT NULL,
+    url NVARCHAR(500) NOT NULL, -- Guarda el nombre del blob para generar descargas firmadas
+    categoria NVARCHAR(50) NOT NULL,
     vistoPorAdmin BIT DEFAULT 0,
     createdAt DATETIME2 DEFAULT GETDATE(),
     FOREIGN KEY (solicitudID) REFERENCES Solicitudes(id) ON DELETE CASCADE

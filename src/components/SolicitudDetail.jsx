@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check } from 'lucide-react';
+import Swal from 'sweetalert2';
+import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check, Trash2 } from 'lucide-react';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import { apiRequest } from '../config/api';
 import { useAuth } from '../hooks/useAuth';
@@ -14,7 +15,7 @@ const SolicitudDetail = ({
   currentUserId,
   isUserView = false,
 }) => {
-  const { getAccessToken } = useAuth();
+  const { getAccessToken, getDocumentDownloadUrl, deleteDocument } = useAuth();
   const [newMessage, setNewMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [pendingFiles, setPendingFiles] = useState([]);
@@ -182,6 +183,38 @@ const SolicitudDetail = ({
   const handleCancelEditDescripcion = () => {
     setEditingDescripcion(false);
     setNuevaDescripcion('');
+  };
+
+  const handleDownloadDocument = async (doc) => {
+    try {
+      const url = await getDocumentDownloadUrl(doc.id);
+      window.open(url, '_blank', 'noopener');
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo descargar el documento',
+        confirmButtonColor: '#1e40af'
+      });
+      console.error('Error descargando documento:', error);
+    }
+  };
+
+  const handleDeleteDocument = async (doc) => {
+    const result = await Swal.fire({
+      title: '¿Eliminar documento?',
+      text: `Se eliminara ${doc.nombre} de forma permanente`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (result.isConfirmed) {
+      await deleteDocument(doc.id);
+    }
   };
 
   return (
@@ -381,24 +414,36 @@ const SolicitudDetail = ({
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <div className="flex-1 min-w-0">
-                            <a
-                              href={doc.url}
-                              className="text-sm font-normal text-gray-600 hover:text-gray-800 truncate block"
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadDocument(doc)}
+                              className="text-sm font-normal text-gray-600 hover:text-gray-800 truncate block text-left"
                             >
                               {doc.nombre}
-                            </a>
+                            </button>
                             <span className="text-[0.7rem] italic text-gray-500 block mt-0.5">
                               {doc.createdAt || doc.fechaCarga ? formatDate(doc.createdAt || doc.fechaCarga) : 'Fecha no disponible'}
                             </span>
                           </div>
                         </div>
-                        <a
-                          href={doc.url}
-                          className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                          title="Descargar"
-                        >
-                          <Download className="w-5 h-5" />
-                        </a>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadDocument(doc)}
+                            className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                            title="Descargar"
+                          >
+                            <Download className="w-5 h-5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDocument(doc)}
+                            className="flex-shrink-0 text-red-600 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
                     ))
                 )}
@@ -428,24 +473,36 @@ const SolicitudDetail = ({
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <div className="flex-1 min-w-0">
-                            <a
-                              href={doc.url}
-                              className="text-sm font-normal text-gray-600 hover:text-gray-800 truncate block"
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadDocument(doc)}
+                              className="text-sm font-normal text-gray-600 hover:text-gray-800 truncate block text-left"
                             >
                               {doc.nombre}
-                            </a>
+                            </button>
                             <span className="text-[0.7rem] italic text-gray-500 block mt-0.5">
                               {doc.createdAt || doc.fechaCarga ? formatDate(doc.createdAt || doc.fechaCarga) : 'Fecha no disponible'}
                             </span>
                           </div>
                         </div>
-                        <a
-                          href={doc.url}
-                          className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                          title="Descargar"
-                        >
-                          <Download className="w-5 h-5" />
-                        </a>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadDocument(doc)}
+                            className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                            title="Descargar"
+                          >
+                            <Download className="w-5 h-5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDocument(doc)}
+                            className="flex-shrink-0 text-red-600 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
                     ))
                 )}
@@ -475,24 +532,36 @@ const SolicitudDetail = ({
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <div className="flex-1 min-w-0">
-                            <a
-                              href={doc.url}
-                              className="text-sm font-normal text-gray-600 hover:text-gray-800 truncate block"
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadDocument(doc)}
+                              className="text-sm font-normal text-gray-600 hover:text-gray-800 truncate block text-left"
                             >
                               {doc.nombre}
-                            </a>
+                            </button>
                             <span className="text-[0.7rem] italic text-gray-500 block mt-0.5">
                               {doc.createdAt || doc.fechaCarga ? formatDate(doc.createdAt || doc.fechaCarga) : 'Fecha no disponible'}
                             </span>
                           </div>
                         </div>
-                        <a
-                          href={doc.url}
-                          className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                          title="Descargar"
-                        >
-                          <Download className="w-5 h-5" />
-                        </a>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadDocument(doc)}
+                            className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                            title="Descargar"
+                          >
+                            <Download className="w-5 h-5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDocument(doc)}
+                            className="flex-shrink-0 text-red-600 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
                     ))
                 )}

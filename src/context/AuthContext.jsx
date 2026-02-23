@@ -256,17 +256,14 @@ export const AuthProvider = ({ children }) => {
     try {
       const token = await getAccessToken();
 
-      const newDocument = {
-        solicitudID,
-        nombre: file.name,
-        tipo: file.type,
-        url: `https://storage.example.com/documentos/${encodeURIComponent(file.name)}`,
-        categoria: categoria
-      };
+      const formData = new FormData();
+      formData.append('solicitudID', solicitudID);
+      formData.append('categoria', categoria);
+      formData.append('file', file);
 
       const data = await apiRequest('/documentos', {
         method: 'POST',
-        body: JSON.stringify(newDocument),
+        body: formData,
         token
       });
 
@@ -289,6 +286,41 @@ export const AuthProvider = ({ children }) => {
         confirmButtonColor: '#1e40af'
       });
       console.error('Error subiendo documento:', error);
+    }
+  };
+
+  const getDocumentDownloadUrl = async (documentoId) => {
+    const token = await getAccessToken();
+    const data = await apiRequest(`/documentos/${documentoId}/download`, { token });
+    return data.url;
+  };
+
+  const deleteDocument = async (documentoId) => {
+    try {
+      const token = await getAccessToken();
+      await apiRequest(`/documentos/${documentoId}`, {
+        method: 'DELETE',
+        token
+      });
+
+      setDocumentos(prev => prev.filter(doc => doc.id !== documentoId));
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Documento eliminado',
+        text: 'El documento se ha eliminado correctamente',
+        confirmButtonColor: '#1e40af',
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo eliminar el documento',
+        confirmButtonColor: '#1e40af'
+      });
+      console.error('Error eliminando documento:', error);
     }
   };
 
@@ -338,8 +370,8 @@ export const AuthProvider = ({ children }) => {
       const data = await apiRequest(`/solicitudes/${solicitudID}`, {
         method: 'PUT',
         body: JSON.stringify({
-          titulo: solicitudActual.titulo,
-          descripcion: solicitudActual.descripcion,
+          proyecto: solicitudActual.proyecto,
+          descripcion: solicitudActual.comentarios,
           estado: nuevoEstado
         }),
         token
@@ -411,15 +443,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const createSolicitud = async (usuarioID, proyecto, comentarios) => {
+  const createSolicitud = async (usuarioID, proyecto, comentarios, extraFields = {}) => {
     try {
       const token = await getAccessToken();
+      const normalizedExtras = {
+        pais: extraFields.pais?.trim() || undefined,
+        fechaInicio: extraFields.fechaInicio || undefined,
+        fechaFin: extraFields.fechaFin || undefined,
+        filial: extraFields.filial?.trim() || undefined,
+        horasCodigo: extraFields.horasCodigo?.trim() || undefined
+      };
+      const optionalPayload = Object.fromEntries(
+        Object.entries(normalizedExtras).filter(([, value]) => value !== undefined && value !== '')
+      );
       const data = await apiRequest('/solicitudes', {
         method: 'POST',
         body: JSON.stringify({
           usuarioID,
-          titulo: proyecto,
-          descripcion: comentarios
+          proyecto,
+          descripcion: comentarios,
+          ...optionalPayload
         }),
         token
       });
@@ -518,7 +561,7 @@ export const AuthProvider = ({ children }) => {
       const data = await apiRequest(`/solicitudes/${solicitudID}`, {
         method: 'PUT',
         body: JSON.stringify({
-          titulo: nuevoTitulo,
+          proyecto: nuevoTitulo,
           descripcion: solicitudActual.comentarios,
           estado: solicitudActual.estado
         }),
@@ -588,7 +631,7 @@ export const AuthProvider = ({ children }) => {
       const data = await apiRequest(`/solicitudes/${solicitudID}`, {
         method: 'PUT',
         body: JSON.stringify({
-          titulo: solicitudActual.proyecto,
+          proyecto: solicitudActual.proyecto,
           descripcion: nuevaDescripcion,
           estado: solicitudActual.estado
         }),
@@ -657,6 +700,8 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     uploadDocument,
+    getDocumentDownloadUrl,
+    deleteDocument,
     sendMessage,
     updateSolicitudEstado,
     updateSolicitudTitulo,

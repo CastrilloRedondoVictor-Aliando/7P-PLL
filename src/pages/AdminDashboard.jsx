@@ -1,12 +1,12 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import CreateSolicitudModal from '../components/CreateSolicitudModal';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudTitulo, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, getUsers } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudTitulo, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, getUsers, getDocumentDownloadUrl, deleteDocument } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterUsuario, setFilterUsuario] = useState('Todos');
@@ -29,7 +29,7 @@ const AdminDashboard = () => {
   const messagesDropdownRef = useRef(null);
   const docsButtonRef = useRef(null);
   const docsDropdownRef = useRef(null);
-  const itemsPerPage = 5;
+  const itemsPerPage = 10;
 
   // Cargar usuarios al montar el componente
   useEffect(() => {
@@ -262,8 +262,8 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleCreateSolicitud = async (usuarioID, proyecto, comentarios) => {
-    const newSolicitud = await createSolicitud(usuarioID, proyecto, comentarios);
+  const handleCreateSolicitud = async (usuarioID, proyecto, comentarios, extraFields) => {
+    const newSolicitud = await createSolicitud(usuarioID, proyecto, comentarios, extraFields);
     Swal.fire({
       icon: 'success',
       title: '¡Solicitud creada!',
@@ -357,6 +357,38 @@ const AdminDashboard = () => {
   const handleCancelEditTitulo = () => {
     setEditingTitulo(false);
     setNuevoTitulo('');
+  };
+
+  const handleDownloadDocument = async (doc) => {
+    try {
+      const url = await getDocumentDownloadUrl(doc.id);
+      window.open(url, '_blank', 'noopener');
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo descargar el documento',
+        confirmButtonColor: '#1e40af'
+      });
+      console.error('Error descargando documento:', error);
+    }
+  };
+
+  const handleDeleteDocument = async (doc) => {
+    const result = await Swal.fire({
+      title: '¿Eliminar documento?',
+      text: `Se eliminara ${doc.nombre} de forma permanente`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (result.isConfirmed) {
+      await deleteDocument(doc.id);
+    }
   };
 
   if (loading) {
@@ -922,13 +954,24 @@ const AdminDashboard = () => {
                               <div className="flex items-center space-x-2 flex-1 min-w-0">
                                 <span className="text-sm font-normal text-gray-600 truncate">{doc.nombre}</span>
                               </div>
-                              <a
-                                href={doc.url}
-                                className="flex-shrink-0 text-primary hover:text-blue-700 p-1 rounded transition-colors"
-                                title="Descargar"
-                              >
-                                <Download className="w-4 h-4" />
-                              </a>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadDocument(doc)}
+                                  className="flex-shrink-0 text-primary hover:text-blue-700 p-1 rounded transition-colors"
+                                  title="Descargar"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteDocument(doc)}
+                                  className="flex-shrink-0 text-red-600 hover:text-red-700 p-1 rounded transition-colors"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           ))
                         )}
@@ -952,13 +995,24 @@ const AdminDashboard = () => {
                               <div className="flex items-center space-x-2 flex-1 min-w-0">
                                 <span className="text-sm font-normal text-gray-600 truncate">{doc.nombre}</span>
                               </div>
-                              <a
-                                href={doc.url}
-                                className="flex-shrink-0 text-primary hover:text-blue-700 p-1 rounded transition-colors"
-                                title="Descargar"
-                              >
-                                <Download className="w-4 h-4" />
-                              </a>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadDocument(doc)}
+                                  className="flex-shrink-0 text-primary hover:text-blue-700 p-1 rounded transition-colors"
+                                  title="Descargar"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteDocument(doc)}
+                                  className="flex-shrink-0 text-red-600 hover:text-red-700 p-1 rounded transition-colors"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           ))
                         )}
@@ -982,13 +1036,24 @@ const AdminDashboard = () => {
                               <div className="flex items-center space-x-2 flex-1 min-w-0">
                                 <span className="text-sm font-normal text-gray-600 truncate">{doc.nombre}</span>
                               </div>
-                              <a
-                                href={doc.url}
-                                className="flex-shrink-0 text-primary hover:text-blue-700 p-1 rounded transition-colors"
-                                title="Descargar"
-                              >
-                                <Download className="w-4 h-4" />
-                              </a>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadDocument(doc)}
+                                  className="flex-shrink-0 text-primary hover:text-blue-700 p-1 rounded transition-colors"
+                                  title="Descargar"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteDocument(doc)}
+                                  className="flex-shrink-0 text-red-600 hover:text-red-700 p-1 rounded transition-colors"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           ))
                         )}

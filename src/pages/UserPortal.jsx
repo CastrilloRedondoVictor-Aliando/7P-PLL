@@ -17,7 +17,7 @@ const UserPortal = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const notificationsButtonRef = useRef(null);
   const notificationsDropdownRef = useRef(null);
-  const itemsPerPage = 5;
+  const itemsPerPage = 10;
 
   // Filtrar solicitudes del usuario actual
   const userSolicitudes = solicitudes.filter(s => s.usuarioID === user.id);
@@ -123,8 +123,8 @@ const UserPortal = () => {
     }));
   };
 
-  const handleCreateSolicitud = (proyecto, comentarios) => {
-    createSolicitud(user.id, proyecto, comentarios);
+  const handleCreateSolicitud = (proyecto, comentarios, extraFields) => {
+    createSolicitud(user.id, proyecto, comentarios, extraFields);
     Swal.fire({
       icon: 'success',
       title: '¡Solicitud creada!',

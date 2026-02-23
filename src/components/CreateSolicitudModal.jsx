@@ -7,7 +7,12 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
   const [formData, setFormData] = useState({
     usuarioID: '',
     proyecto: '',
-    comentarios: ''
+    comentarios: '',
+    pais: '',
+    fechaInicio: '',
+    fechaFin: '',
+    filial: '',
+    horasCodigo: ''
   });
   const [searchUser, setSearchUser] = useState('');
   const [users, setUsers] = useState([]);
@@ -57,9 +62,25 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
       onCreate(
         parseInt(formData.usuarioID),
         formData.proyecto,
-        formData.comentarios
+        formData.comentarios,
+        {
+          pais: formData.pais,
+          fechaInicio: formData.fechaInicio,
+          fechaFin: formData.fechaFin,
+          filial: formData.filial,
+          horasCodigo: formData.horasCodigo
+        }
       );
-      setFormData({ usuarioID: '', proyecto: '', comentarios: '' });
+      setFormData({
+        usuarioID: '',
+        proyecto: '',
+        comentarios: '',
+        pais: '',
+        fechaInicio: '',
+        fechaFin: '',
+        filial: '',
+        horasCodigo: ''
+      });
       setSearchUser('');
       requestClose();
     }
@@ -167,6 +188,84 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
               placeholder="Describe los detalles de la solicitud..."
               required
             ></textarea>
+          </div>
+
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">Campos opcionales</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="pais" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Pais
+                </label>
+                <input
+                  id="pais"
+                  name="pais"
+                  type="text"
+                  value={formData.pais}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                  placeholder="Ej: Espana"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="filial" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Filial
+                </label>
+                <input
+                  id="filial"
+                  name="filial"
+                  type="text"
+                  value={formData.filial}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                  placeholder="Ej: Madrid"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="fechaInicio" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Fecha de inicio
+                </label>
+                <input
+                  id="fechaInicio"
+                  name="fechaInicio"
+                  type="date"
+                  value={formData.fechaInicio}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="fechaFin" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Fecha de fin
+                </label>
+                <input
+                  id="fechaFin"
+                  name="fechaFin"
+                  type="date"
+                  value={formData.fechaFin}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="horasCodigo" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Horas codigo
+                </label>
+                <input
+                  id="horasCodigo"
+                  name="horasCodigo"
+                  type="text"
+                  value={formData.horasCodigo}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                  placeholder="Ej: 120h"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4 border-t">

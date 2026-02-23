@@ -90,8 +90,8 @@ npm run dev
   id: Number,
   solicitudID: Number,
   nombreArchivo: String,
-  urlBlob: String,
-  tamaño: String,
+  blobName: String,
+  categoria: String,
   fechaCarga: String (ISO)
 }
 ```
