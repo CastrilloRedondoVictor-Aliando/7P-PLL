@@ -243,14 +243,6 @@ const SolicitudDetail = ({
                   <MapPin className="w-4 h-4 mr-1" />
                   Pais: {solicitud.pais?.trim() ? solicitud.pais : 'Sin dato'}
                 </span>
-                <span className="flex items-center">
-                  <Building2 className="w-4 h-4 mr-1" />
-                  Filial: {solicitud.filial?.trim() ? solicitud.filial : 'Sin dato'}
-                </span>
-                <span className="flex items-center">
-                  <Clock className="w-4 h-4 mr-1" />
-                  Codigo de horas: {solicitud.horasCodigo?.trim() ? solicitud.horasCodigo : 'Sin dato'}
-                </span>
               </div>
             </div>
           </div>
