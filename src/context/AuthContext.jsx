@@ -511,13 +511,19 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ solicitudID }),
         token
       });
-      
+
+      const isAdmin = user?.rol === 'admin';
       setMensajes(prev => 
-        prev.map(msg => 
-          msg.solicitudID === solicitudID && msg.usuarioID !== user.id
-            ? { ...msg, leido: true }
-            : msg
-        )
+        prev.map(msg => {
+          if (msg.solicitudID !== solicitudID) return msg;
+          if (isAdmin && msg.rol === 'user') {
+            return { ...msg, leidoPorAdmin: true, leido: true };
+          }
+          if (!isAdmin && msg.rol === 'admin') {
+            return { ...msg, leidoPorUser: true, leido: true };
+          }
+          return msg;
+        })
       );
     } catch (error) {
       console.error('Error marcando mensajes como leídos:', error);

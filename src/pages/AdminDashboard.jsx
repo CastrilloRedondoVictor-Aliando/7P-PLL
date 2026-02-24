@@ -48,14 +48,14 @@ const AdminDashboard = () => {
 
   // Contar mensajes no leídos de usuarios
   const unreadMessages = mensajes.filter(m => {
-    return m.rol === 'user' && !m.leido && m.usuarioID !== user.id;
+    return m.rol === 'user' && !m.leidoPorAdmin && m.usuarioID !== user.id;
   }).length;
 
   // Obtener solicitudes con mensajes sin leer
   const solicitudesWithUnreadMessages = solicitudes.filter(s => {
     const hasUnreadMessages = mensajes.some(m => 
       m.solicitudID === s.id && 
-      !m.leido && 
+      !m.leidoPorAdmin && 
       m.usuarioID !== user.id &&
       m.rol === 'user'
     );
@@ -506,7 +506,7 @@ const AdminDashboard = () => {
                         solicitudesWithUnreadMessages.map(sol => {
                           const unreadCount = mensajes.filter(m => {
                             return m.solicitudID === sol.id && 
-                              !m.leido && 
+                              !m.leidoPorAdmin && 
                               m.rol === 'user';
                           }).length;
                           return (

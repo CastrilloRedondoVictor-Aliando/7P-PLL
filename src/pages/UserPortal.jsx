@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { LogOut, Search, Bell, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
+import { apiRequest } from '../config/api';
 import SolicitudCard from '../components/SolicitudCard';
 import SolicitudDetail from '../components/SolicitudDetail';
 
 const UserPortal = () => {
-  const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage, createSolicitud, markMessagesAsRead, updateSolicitudDescripcion, signalRConnection } = useAuth();
+  const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage, createSolicitud, markMessagesAsRead, updateSolicitudDescripcion, signalRConnection, getAccessToken } = useAuth();
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
@@ -18,6 +19,7 @@ const UserPortal = () => {
   const [isMobile, setIsMobile] = useState(false);
   const notificationsButtonRef = useRef(null);
   const notificationsDropdownRef = useRef(null);
+  const joinedGroupsRef = useRef(new Set());
   const itemsPerPage = 10;
 
   // Filtrar solicitudes del usuario actual
@@ -26,13 +28,13 @@ const UserPortal = () => {
   // Contar mensajes no leídos
   const unreadMessages = mensajes.filter(m => {
     const solicitud = solicitudes.find(s => s.id === m.solicitudID);
-    return solicitud?.usuarioID === user.id && !m.leido && m.usuarioID !== user.id;
+    return solicitud?.usuarioID === user.id && !m.leidoPorUser && m.rol === 'admin';
   }).length;
 
   // Solicitudes con mensajes sin leer
   const solicitudesWithUnreadMessages = userSolicitudes.filter(sol => {
     const hasUnread = mensajes.some(m => 
-      m.solicitudID === sol.id && !m.leido && m.usuarioID !== user.id
+      m.solicitudID === sol.id && !m.leidoPorUser && m.rol === 'admin'
     );
     return hasUnread;
   });
@@ -65,6 +67,50 @@ const UserPortal = () => {
       markMessagesAsRead(selectedSolicitud.id);
     }
   }, [selectedSolicitud, markMessagesAsRead]);
+
+  useEffect(() => {
+    const joinAllGroups = async () => {
+      if (!userSolicitudes.length) return;
+      try {
+        const token = await getAccessToken();
+        const joinPromises = userSolicitudes.map(async (sol) => {
+          if (joinedGroupsRef.current.has(sol.id)) return;
+          await apiRequest('/signalr/join-group', {
+            method: 'POST',
+            body: JSON.stringify({ solicitudID: sol.id }),
+            token
+          });
+          joinedGroupsRef.current.add(sol.id);
+        });
+        await Promise.all(joinPromises);
+      } catch (error) {
+        console.error('Error uniéndose a grupos de SignalR (user):', error);
+      }
+    };
+
+    joinAllGroups();
+
+    return () => {
+      const leaveAllGroups = async () => {
+        if (joinedGroupsRef.current.size === 0) return;
+        try {
+          const token = await getAccessToken();
+          const leavePromises = Array.from(joinedGroupsRef.current).map(async (solicitudID) => {
+            await apiRequest('/signalr/leave-group', {
+              method: 'POST',
+              body: JSON.stringify({ solicitudID }),
+              token
+            });
+          });
+          await Promise.all(leavePromises);
+          joinedGroupsRef.current.clear();
+        } catch (error) {
+          console.error('Error saliendo de grupos de SignalR (user):', error);
+        }
+      };
+      leaveAllGroups();
+    };
+  }, [userSolicitudes, getAccessToken]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 1023px)');
@@ -229,7 +275,7 @@ const UserPortal = () => {
                       ) : (
                         solicitudesWithUnreadMessages.map(sol => {
                           const unreadCount = mensajes.filter(m => 
-                            m.solicitudID === sol.id && !m.leido && m.usuarioID !== user.id
+                            m.solicitudID === sol.id && !m.leidoPorUser && m.rol === 'admin'
                           ).length;
                           return (
                             <div
