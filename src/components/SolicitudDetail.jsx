@@ -14,6 +14,8 @@ const SolicitudDetail = ({
   onUpdateDescripcion,
   currentUserId,
   isUserView = false,
+  showCloseButton = false,
+  onClose,
 }) => {
   const { getAccessToken, getDocumentDownloadUrl, deleteDocument } = useAuth();
   const [newMessage, setNewMessage] = useState('');
@@ -28,7 +30,11 @@ const SolicitudDetail = ({
   const messagesContainerRef = useRef(null);
   const estadoColors = getEstadoColor(solicitud.estado);
 
-  const categorias = ['General', 'Vuelos', 'Hoteles'];
+  const categorias = [
+    { value: 'General', label: 'Principales funciones' },
+    { value: 'Vuelos', label: 'Vuelos' },
+    { value: 'Hoteles', label: 'Hoteles' }
+  ];
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -226,7 +232,27 @@ const SolicitudDetail = ({
       <div className="bg-gradient-to-r from-primary to-blue-600 text-white p-4 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold mb-2">{solicitud.proyecto}</h2>
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-xl sm:text-2xl font-bold">
+                {(solicitud.pais?.trim() ? solicitud.pais.toUpperCase() : 'SIN PAIS')}
+                {' - '}
+                {solicitud.fechaInicio
+                  ? new Date(solicitud.fechaInicio)
+                      .toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+                      .toUpperCase()
+                  : 'SIN FECHA'}
+              </h2>
+              {showCloseButton && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="p-2 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors"
+                  aria-label="Cerrar detalle"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
             <div className="flex flex-col gap-2 text-blue-100 text-sm">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="flex items-center">
@@ -345,7 +371,7 @@ const SolicitudDetail = ({
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
                 >
                   {categorias.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
                   ))}
                 </select>
               </div>
@@ -426,7 +452,7 @@ const SolicitudDetail = ({
                     .map(doc => (
                       <div
                         key={doc.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <div className="flex-1 min-w-0">
@@ -442,7 +468,7 @@ const SolicitudDetail = ({
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 sm:justify-end">
                           <button
                             type="button"
                             onClick={() => handleDownloadDocument(doc)}
@@ -485,7 +511,7 @@ const SolicitudDetail = ({
                     .map(doc => (
                       <div
                         key={doc.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <div className="flex-1 min-w-0">
@@ -501,7 +527,7 @@ const SolicitudDetail = ({
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 sm:justify-end">
                           <button
                             type="button"
                             onClick={() => handleDownloadDocument(doc)}
@@ -544,7 +570,7 @@ const SolicitudDetail = ({
                     .map(doc => (
                       <div
                         key={doc.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <div className="flex-1 min-w-0">
@@ -560,7 +586,7 @@ const SolicitudDetail = ({
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 sm:justify-end">
                           <button
                             type="button"
                             onClick={() => handleDownloadDocument(doc)}

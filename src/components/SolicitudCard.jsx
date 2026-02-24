@@ -3,6 +3,16 @@ import { formatDateShort, getEstadoColor } from '../utils/helpers';
 
 const SolicitudCard = ({ solicitud, isSelected, onClick }) => {
   const estadoColors = getEstadoColor(solicitud.estado);
+  const travelTitle = () => {
+    const pais = solicitud.pais?.trim() ? solicitud.pais.toUpperCase() : 'SIN PAIS';
+    if (!solicitud.fechaInicio) {
+      return `${pais} - SIN FECHA`;
+    }
+    const monthYear = new Date(solicitud.fechaInicio)
+      .toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+      .toUpperCase();
+    return `${pais} - ${monthYear}`;
+  };
 
   return (
     <div
@@ -14,8 +24,8 @@ const SolicitudCard = ({ solicitud, isSelected, onClick }) => {
       }`}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-start mb-2">
-        <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{solicitud.proyecto}</h3>
-        <span className={`text-xs px-2 py-1 rounded-full ${estadoColors.bg} ${estadoColors.text}`}>
+        <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{travelTitle()}</h3>
+        <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${estadoColors.bg} ${estadoColors.text}`}>
           {solicitud.estado}
         </span>
       </div>

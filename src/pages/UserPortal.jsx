@@ -1,20 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
-import { LogOut, Search, Plus, Bell } from 'lucide-react';
+import { LogOut, Search, Bell, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import SolicitudCard from '../components/SolicitudCard';
 import SolicitudDetail from '../components/SolicitudDetail';
-import CreateSolicitudModalUser from '../components/CreateSolicitudModalUser';
 
 const UserPortal = () => {
   const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage, createSolicitud, markMessagesAsRead, updateSolicitudDescripcion, signalRConnection } = useAuth();
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [isNotificationsDropdownClosing, setIsNotificationsDropdownClosing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isDetailClosing, setIsDetailClosing] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const notificationsButtonRef = useRef(null);
   const notificationsDropdownRef = useRef(null);
   const itemsPerPage = 10;
@@ -64,6 +65,27 @@ const UserPortal = () => {
       markMessagesAsRead(selectedSolicitud.id);
     }
   }, [selectedSolicitud, markMessagesAsRead]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1023px)');
+    const handleChange = (event) => setIsMobile(event.matches);
+    setIsMobile(mediaQuery.matches);
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = isDetailOpen ? 'hidden' : previousOverflow;
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isDetailOpen, isMobile]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -123,17 +145,23 @@ const UserPortal = () => {
     }));
   };
 
-  const handleCreateSolicitud = (proyecto, comentarios, extraFields) => {
-    createSolicitud(user.id, proyecto, comentarios, extraFields);
-    Swal.fire({
-      icon: 'success',
-      title: '¡Solicitud creada!',
-      text: 'Tu solicitud ha sido enviada correctamente. Recibirás una respuesta pronto.',
-      confirmButtonColor: '#1e40af',
-      timer: 3000,
-      showConfirmButton: false
-    });
+  const handleSelectSolicitud = (solicitud) => {
+    setSelectedSolicitud(solicitud);
+    if (isMobile) {
+      setIsDetailClosing(false);
+      setIsDetailOpen(true);
+    }
   };
+
+  const handleCloseDetail = () => {
+    if (isDetailClosing) return;
+    setIsDetailClosing(true);
+    setTimeout(() => {
+      setIsDetailOpen(false);
+      setIsDetailClosing(false);
+    }, 180);
+  };
+
 
   const openNotificationsDropdown = () => {
     setShowNotificationsDropdown(true);
@@ -169,14 +197,6 @@ const UserPortal = () => {
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:space-x-4">
               <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                <button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="bg-white text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center"
-                >
-                  <Plus className="w-5 h-5" />
-                  <span>Nueva Solicitud</span>
-                </button>
-                
                 {/* Badge de mensajes no leídos (solo escritorio) */}
                 <div className="relative hidden xl:block">
                   <button 
@@ -300,7 +320,7 @@ const UserPortal = () => {
                       key={solicitud.id}
                       solicitud={solicitud}
                       isSelected={selectedSolicitud?.id === solicitud.id}
-                      onClick={() => setSelectedSolicitud(solicitud)}
+                      onClick={() => handleSelectSolicitud(solicitud)}
                     />
                   ))
                 )}
@@ -330,8 +350,8 @@ const UserPortal = () => {
             </div>
           </div>
 
-          {/* Panel de Detalle */}
-          <div className="lg:col-span-2">
+          {/* Panel de Detalle (escritorio) */}
+          <div className="lg:col-span-2 hidden lg:block">
             {selectedSolicitud ? (
               <SolicitudDetail
                 solicitud={selectedSolicitud}
@@ -356,12 +376,39 @@ const UserPortal = () => {
         </div>
       </div>
 
-      {/* Modal de creación */}
-      <CreateSolicitudModalUser
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onCreate={handleCreateSolicitud}
-      />
+      {/* Detalle como popup (responsive móvil) */}
+      {isMobile && isDetailOpen && selectedSolicitud && (
+        <div
+          className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black p-3 sm:p-6 lg:hidden ${
+            isDetailClosing ? 'bg-opacity-0' : 'bg-opacity-40'
+          } transition-opacity duration-150`}
+          onClick={handleCloseDetail}
+        >
+          <div
+            className={`w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden ${
+              isDetailClosing ? 'animate-pop-out' : 'animate-pop-in'
+            }`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="max-h-[85vh] overflow-y-auto">
+              <SolicitudDetail
+                solicitud={selectedSolicitud}
+                documentos={solicitudDocumentos}
+                mensajes={solicitudMensajes}
+                onUploadDocument={handleUploadDocument}
+                onSendMessage={handleSendMessage}
+                onUpdateDescripcion={handleUpdateDescripcion}
+                currentUserId={user.id}
+                isUserView={true}
+                signalRConnection={signalRConnection}
+                showCloseButton={true}
+                onClose={handleCloseDetail}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

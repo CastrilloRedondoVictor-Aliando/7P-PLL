@@ -10,7 +10,6 @@ const AdminDashboard = () => {
   const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudTitulo, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, getUsers, getDocumentDownloadUrl, deleteDocument, getAccessToken } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
-  const [filterUsuario, setFilterUsuario] = useState('Todos');
   const [filterFecha, setFilterFecha] = useState('');
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [newMessage, setNewMessage] = useState('');
@@ -75,10 +74,11 @@ const AdminDashboard = () => {
 
   // Filtrar solicitudes
   const filteredSolicitudes = solicitudes.filter(s => {
-    const matchesSearch = s.proyecto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         s.comentarios.toLowerCase().includes(searchTerm.toLowerCase());
+    const searchValue = searchTerm.toLowerCase();
+    const matchesSearch = !searchValue ||
+      s.usuarioNombre?.toLowerCase().includes(searchValue) ||
+      s.pais?.toLowerCase().includes(searchValue);
     const matchesFilter = filterEstado === 'Todos' || s.estado === filterEstado;
-    const matchesUser = filterUsuario === 'Todos' || s.usuarioID === parseInt(filterUsuario);
     const targetDate = filterFecha ? new Date(filterFecha) : null;
     if (targetDate) {
       targetDate.setHours(0, 0, 0, 0);
@@ -89,7 +89,7 @@ const AdminDashboard = () => {
     if (endDate) endDate.setHours(0, 0, 0, 0);
     const matchesDate = !targetDate || (startDate && endDate && startDate <= targetDate && endDate >= targetDate);
 
-    return matchesSearch && matchesFilter && matchesUser && matchesDate;
+    return matchesSearch && matchesFilter && matchesDate;
   }).sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
 
   const totalPages = Math.max(1, Math.ceil(filteredSolicitudes.length / itemsPerPage));
@@ -115,14 +115,6 @@ const AdminDashboard = () => {
     Aceptada: { hover: 'hover:bg-green-50', selected: 'bg-green-50 ring-1 ring-green-100' },
     Rechazada: { hover: 'hover:bg-red-50', selected: 'bg-red-50 ring-1 ring-red-100' }
   };
-
-  const usuariosParaFiltro = (usuarios && usuarios.length > 0)
-    ? usuarios.filter(u => u.rol === 'user')
-    : solicitudes.map(s => ({
-        id: s.usuarioID,
-        nombre: s.usuarioNombre,
-        email: s.usuarioEmail
-      }));
 
   const handleEstadoChange = (solicitudId, nuevoEstado) => {
     updateSolicitudEstado(solicitudId, nuevoEstado);
@@ -263,7 +255,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterEstado, filterUsuario, filterFecha, solicitudes.length]);
+  }, [searchTerm, filterEstado, filterFecha, solicitudes.length]);
 
   useEffect(() => {
     if (!showMessagesDropdown && !showDocsDropdown) return;
@@ -710,30 +702,12 @@ const AdminDashboard = () => {
 
         {/* Filtros */}
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <select
-              value={filterUsuario}
-              onChange={(e) => setFilterUsuario(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
-            >
-              <option value="Todos">Todos los usuarios</option>
-              {usuariosParaFiltro
-                .filter(user => user && user.id != null)
-                .filter((user, index, self) =>
-                  index === self.findIndex(u => u.id === user.id)
-                )
-                .map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.nombre}{u.email ? ` (${u.email})` : ''}
-                  </option>
-                ))}
-            </select>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar solicitudes..."
+                placeholder="Buscar por empleado o pais..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
@@ -776,7 +750,7 @@ const AdminDashboard = () => {
               </thead>
               <tbody
                 className="divide-y divide-gray-200 animate-fade-in-up"
-                key={`table-page-${currentPage}-${filterEstado}-${filterUsuario}-${filterFecha}-${searchTerm}`}
+                key={`table-page-${currentPage}-${filterEstado}-${filterFecha}-${searchTerm}`}
               >
                 {filteredSolicitudes.length === 0 ? (
                   <tr>
@@ -830,7 +804,7 @@ const AdminDashboard = () => {
         {/* Cards de Solicitudes (movil) */}
         <div
           className="xl:hidden space-y-4 animate-fade-in-up"
-          key={`cards-page-${currentPage}-${filterEstado}-${filterUsuario}-${filterFecha}-${searchTerm}`}
+          key={`cards-page-${currentPage}-${filterEstado}-${filterFecha}-${searchTerm}`}
         >
           {filteredSolicitudes.length === 0 ? (
             <div className="bg-white rounded-xl shadow-md p-6 text-center text-gray-500">
