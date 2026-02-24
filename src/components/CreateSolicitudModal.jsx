@@ -7,7 +7,6 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
   const [formData, setFormData] = useState({
     usuarioID: '',
     proyecto: '',
-    comentarios: '',
     pais: '',
     fechaInicio: '',
     fechaFin: '',
@@ -58,11 +57,11 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (formData.usuarioID && formData.proyecto && formData.comentarios) {
+    if (formData.usuarioID && formData.proyecto) {
       onCreate(
         parseInt(formData.usuarioID),
         formData.proyecto,
-        formData.comentarios,
+        '',
         {
           pais: formData.pais,
           fechaInicio: formData.fechaInicio,
@@ -74,7 +73,6 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
       setFormData({
         usuarioID: '',
         proyecto: '',
-        comentarios: '',
         pais: '',
         fechaInicio: '',
         fechaFin: '',
@@ -172,22 +170,6 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
               placeholder="Ej: Proyecto Omega"
               required
             />
-          </div>
-
-          <div>
-            <label htmlFor="comentarios" className="block text-sm font-semibold text-gray-700 mb-2">
-              Principales funciones realizadas *
-            </label>
-            <textarea
-              id="comentarios"
-              name="comentarios"
-              value={formData.comentarios}
-              onChange={handleChange}
-              rows="5"
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary resize-none"
-              placeholder="Describe los detalles de la solicitud..."
-              required
-            ></textarea>
           </div>
 
           <div className="border-t pt-4">

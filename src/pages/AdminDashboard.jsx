@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown, Trash2 } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../config/api';
@@ -805,7 +805,7 @@ const AdminDashboard = () => {
                         <td className="px-4 lg:px-6 py-4">
                           <div className="text-sm font-medium text-gray-900">{solicitud.proyecto}</div>
                           <div className="text-sm text-gray-500 truncate max-w-xs">
-                            {solicitud.comentarios}
+                            {solicitud.comentarios?.trim() ? solicitud.comentarios : 'Sin descripcion'}
                           </div>
                         </td>
                         <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden lg:table-cell whitespace-nowrap">
@@ -861,7 +861,7 @@ const AdminDashboard = () => {
                       {solicitud.proyecto}
                     </p>
                     <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                      {solicitud.comentarios}
+                      {solicitud.comentarios?.trim() ? solicitud.comentarios : 'Sin descripcion'}
                     </p>
                   </div>
 
@@ -955,10 +955,11 @@ const AdminDashboard = () => {
               }`}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="bg-primary text-white p-6 flex justify-between items-center">
-                <div className="flex-1">
+              <div className="bg-primary text-white p-6 relative">
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
+                  <div>
                   {editingTitulo ? (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 pr-12">
                       <input
                         type="text"
                         value={nuevoTitulo}
@@ -995,10 +996,37 @@ const AdminDashboard = () => {
                     </div>
                   )}
                   <p className="text-blue-200 text-sm">Usuario: {getUserName(selectedSolicitud.usuarioID)}</p>
+                  <div className="flex flex-col gap-2 text-blue-100 text-sm mt-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="flex items-center">
+                        <Calendar className="w-4 h-4 mr-1" />
+                        Inicio: {selectedSolicitud.fechaInicio ? formatDate(selectedSolicitud.fechaInicio) : 'Sin fecha'}
+                      </span>
+                      <span className="flex items-center">
+                        <Calendar className="w-4 h-4 mr-1" />
+                        Fin: {selectedSolicitud.fechaFin ? formatDate(selectedSolicitud.fechaFin) : 'Sin fecha'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="flex items-center">
+                        <MapPin className="w-4 h-4 mr-1" />
+                        Pais: {selectedSolicitud.pais?.trim() ? selectedSolicitud.pais : 'Sin dato'}
+                      </span>
+                      <span className="flex items-center">
+                        <Building2 className="w-4 h-4 mr-1" />
+                        Filial: {selectedSolicitud.filial?.trim() ? selectedSolicitud.filial : 'Sin dato'}
+                      </span>
+                      <span className="flex items-center">
+                        <Clock className="w-4 h-4 mr-1" />
+                        Codigo de horas: {selectedSolicitud.horasCodigo?.trim() ? selectedSolicitud.horasCodigo : 'Sin dato'}
+                      </span>
+                    </div>
+                  </div>
+                  </div>
                 </div>
                 <button
                   onClick={closeDetailPanel}
-                  className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
+                  className="absolute top-4 right-4 text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
@@ -1007,7 +1035,11 @@ const AdminDashboard = () => {
               <div className="p-4 sm:p-6 space-y-6">
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Principales funciones realizadas</h4>
+                  <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">
+                    {selectedSolicitud.comentarios?.trim() ? selectedSolicitud.comentarios : 'Sin descripcion'}
+                  </p>
                 </div>
+
 
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-3">Documentos ({solicitudDocumentos.length})</h4>

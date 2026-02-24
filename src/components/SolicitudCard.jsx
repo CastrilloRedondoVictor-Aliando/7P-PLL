@@ -21,7 +21,7 @@ const SolicitudCard = ({ solicitud, isSelected, onClick }) => {
       </div>
       
       <p className="text-sm text-gray-600 line-clamp-2 mb-3">
-        {solicitud.comentarios}
+        {solicitud.comentarios?.trim() ? solicitud.comentarios : 'Sin descripcion'}
       </p>
       
       <div className="flex flex-wrap items-center text-xs text-gray-500 gap-3">
@@ -32,10 +32,6 @@ const SolicitudCard = ({ solicitud, isSelected, onClick }) => {
         <div className="flex items-center">
           <Calendar className="w-3 h-3 mr-1" />
           Fin: {solicitud.fechaFin ? formatDateShort(solicitud.fechaFin) : 'Sin fecha'}
-        </div>
-        <div className="flex items-center">
-          <FileText className="w-3 h-3 mr-1" />
-          ID: {solicitud.id}
         </div>
       </div>
     </div>

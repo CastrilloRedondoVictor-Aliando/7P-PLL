@@ -112,7 +112,7 @@ const CreateSolicitudModalUser = ({ isOpen, onClose, onCreate }) => {
 
           <div>
             <label htmlFor="comentarios" className="block text-sm font-semibold text-gray-700 mb-2">
-              Comentarios Adicionales *
+              Principales funciones realizadas *
             </label>
             <textarea
               id="comentarios"
@@ -121,7 +121,7 @@ const CreateSolicitudModalUser = ({ isOpen, onClose, onCreate }) => {
               onChange={handleChange}
               rows="5"
               className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary resize-none"
-              placeholder="Describe los detalles de tu solicitud, el contexto, y lo que necesitas que revisemos..."
+              placeholder="Describe los detalles de la solicitud..."
               required
             ></textarea>
           </div>

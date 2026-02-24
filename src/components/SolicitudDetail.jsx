@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import Swal from 'sweetalert2';
-import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check, Trash2 } from 'lucide-react';
+import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check, Trash2, MapPin, Building2, Clock } from 'lucide-react';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import { apiRequest } from '../config/api';
 import { useAuth } from '../hooks/useAuth';
@@ -170,13 +170,15 @@ const SolicitudDetail = ({
   };
 
   const handleEditDescripcion = () => {
-    setNuevaDescripcion(solicitud.comentarios);
+    setNuevaDescripcion(solicitud.comentarios || '');
     setEditingDescripcion(true);
   };
 
   const handleSaveDescripcion = async () => {
-    if (nuevaDescripcion.trim() && nuevaDescripcion !== solicitud.comentarios && onUpdateDescripcion) {
-      await onUpdateDescripcion(solicitud.id, nuevaDescripcion.trim());
+    const nextDescripcion = nuevaDescripcion?.trim() ? nuevaDescripcion.trim() : '';
+    const currentDescripcion = solicitud.comentarios?.trim() ? solicitud.comentarios.trim() : '';
+    if (nextDescripcion !== currentDescripcion && onUpdateDescripcion) {
+      await onUpdateDescripcion(solicitud.id, nextDescripcion);
     }
     setEditingDescripcion(false);
   };
@@ -225,16 +227,31 @@ const SolicitudDetail = ({
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold mb-2">{solicitud.proyecto}</h2>
-            <div className="flex flex-wrap items-center gap-3 text-blue-100 text-sm">
-              <span className="flex items-center">
-                <Calendar className="w-4 h-4 mr-1" />
-                Inicio: {solicitud.fechaInicio ? formatDate(solicitud.fechaInicio) : 'Sin fecha'}
-              </span>
-              <span className="flex items-center">
-                <Calendar className="w-4 h-4 mr-1" />
-                Fin: {solicitud.fechaFin ? formatDate(solicitud.fechaFin) : 'Sin fecha'}
-              </span>
-              <span>ID: {solicitud.id}</span>
+            <div className="flex flex-col gap-2 text-blue-100 text-sm">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="flex items-center">
+                  <Calendar className="w-4 h-4 mr-1" />
+                  Inicio: {solicitud.fechaInicio ? formatDate(solicitud.fechaInicio) : 'Sin fecha'}
+                </span>
+                <span className="flex items-center">
+                  <Calendar className="w-4 h-4 mr-1" />
+                  Fin: {solicitud.fechaFin ? formatDate(solicitud.fechaFin) : 'Sin fecha'}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="flex items-center">
+                  <MapPin className="w-4 h-4 mr-1" />
+                  Pais: {solicitud.pais?.trim() ? solicitud.pais : 'Sin dato'}
+                </span>
+                <span className="flex items-center">
+                  <Building2 className="w-4 h-4 mr-1" />
+                  Filial: {solicitud.filial?.trim() ? solicitud.filial : 'Sin dato'}
+                </span>
+                <span className="flex items-center">
+                  <Clock className="w-4 h-4 mr-1" />
+                  Codigo de horas: {solicitud.horasCodigo?.trim() ? solicitud.horasCodigo : 'Sin dato'}
+                </span>
+              </div>
             </div>
           </div>
           <span className={`px-4 py-2 rounded-full font-semibold ${estadoColors.bg} ${estadoColors.text}`}>
@@ -286,7 +303,9 @@ const SolicitudDetail = ({
               </div>
             </div>
           ) : (
-            <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">{solicitud.comentarios}</p>
+            <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">
+              {solicitud.comentarios?.trim() ? solicitud.comentarios : 'Sin descripcion'}
+            </p>
           )}
         </div>
 
