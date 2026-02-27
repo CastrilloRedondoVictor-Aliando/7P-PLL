@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown } from 'lucide-react';
+import * as XLSX from 'xlsx-js-style';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../config/api';
@@ -463,6 +464,87 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleExportSolicitudes = () => {
+    if (!filteredSolicitudes.length) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Sin datos',
+        text: 'No hay solicitudes filtradas para exportar',
+        confirmButtonColor: '#1e40af'
+      });
+      return;
+    }
+
+    const rows = filteredSolicitudes.map((sol) => ({
+      Proyecto: sol.proyecto || '',
+      Usuario: sol.usuarioNombre || '',
+      Email: sol.usuarioEmail || '',
+      Estado: sol.estado || '',
+      Porcentaje: sol.porcentaje !== null && sol.porcentaje !== undefined ? sol.porcentaje : 0,
+      Pais: sol.pais || '',
+      Empresa: sol.filial || '',
+      'Fecha inicio': sol.fechaInicio ? formatDate(sol.fechaInicio) : '',
+      'Fecha fin': sol.fechaFin ? formatDate(sol.fechaFin) : '',
+      'Codigo de horas': sol.horasCodigo || '',
+      'Principales funciones': sol.comentarios || '',
+      'Fecha creacion': sol.fechaCreacion ? formatDate(sol.fechaCreacion) : '',
+      'Fecha actualizacion': sol.fechaActualizacion ? formatDate(sol.fechaActualizacion) : ''
+    }));
+
+    const headers = Object.keys(rows[0] || {});
+    const columnWidths = headers.map((header) => {
+      const maxRowLength = rows.reduce((max, row) => {
+        const value = row[header];
+        const length = value === null || value === undefined ? 0 : value.toString().length;
+        return Math.max(max, length);
+      }, header.length);
+
+      return { wch: Math.min(Math.max(maxRowLength + 2, 10), 40) };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    worksheet['!cols'] = columnWidths;
+
+    const headerStyle = {
+      font: { bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { patternType: 'solid', fgColor: { rgb: '1E40AF' } },
+      alignment: { vertical: 'center', horizontal: 'center' },
+      border: {
+        top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        right: { style: 'thin', color: { rgb: 'CBD5E1' } }
+      }
+    };
+
+    const cellBorder = {
+      top: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      bottom: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      left: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      right: { style: 'thin', color: { rgb: 'E2E8F0' } }
+    };
+
+    for (let row = range.s.r; row <= range.e.r; row += 1) {
+      for (let col = range.s.c; col <= range.e.c; col += 1) {
+        const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+        const cell = worksheet[cellRef];
+        if (!cell) continue;
+
+        if (row === 0) {
+          cell.s = headerStyle;
+        } else {
+          cell.s = { border: cellBorder };
+        }
+      }
+    }
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Solicitudes');
+
+    const fileDate = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `solicitudes_${fileDate}.xlsx`);
+  };
+
   const handleDeleteDocument = async (doc) => {
     const result = await Swal.fire({
       title: '¿Eliminar documento?',
@@ -509,6 +591,14 @@ const AdminDashboard = () => {
                 >
                   <Plus className="w-5 h-5" />
                   <span>Nueva Solicitud</span>
+                </button>
+
+                <button
+                  onClick={handleExportSolicitudes}
+                  className="bg-white text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center"
+                >
+                  <FileDown className="w-5 h-5" />
+                  <span>Exportar Excel</span>
                 </button>
                 
                 {/* Badge de mensajes no leídos (solo escritorio) */}
