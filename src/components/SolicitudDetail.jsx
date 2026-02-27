@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import Swal from 'sweetalert2';
-import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check, Trash2, MapPin, Building2, Clock } from 'lucide-react';
+import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check, Trash2, MapPin, Building2, Clock, Percent } from 'lucide-react';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import { apiRequest } from '../config/api';
 import { useAuth } from '../hooks/useAuth';
@@ -24,7 +24,6 @@ const SolicitudDetail = ({
   const [editingDescripcion, setEditingDescripcion] = useState(false);
   const [nuevaDescripcion, setNuevaDescripcion] = useState('');
   const [usuarios, setUsuarios] = useState([]);
-  const [selectedCategoria, setSelectedCategoria] = useState('General');
   const [isSendBouncing, setIsSendBouncing] = useState(false);
   const fileInputRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -102,7 +101,10 @@ const SolicitudDetail = ({
 
   const handleFileSelect = (files) => {
     if (files && files.length > 0) {
-      const newFiles = Array.from(files);
+      const newFiles = Array.from(files).map(file => ({
+        file,
+        categoria: 'General'
+      }));
       setPendingFiles(prev => [...prev, ...newFiles]);
     }
   };
@@ -140,7 +142,7 @@ const SolicitudDetail = ({
 
   const confirmUpload = () => {
     if (pendingFiles.length > 0) {
-      pendingFiles.forEach(file => onUploadDocument(file, selectedCategoria));
+      pendingFiles.forEach(({ file, categoria }) => onUploadDocument(file, categoria));
       setPendingFiles([]);
     }
   };
@@ -269,6 +271,10 @@ const SolicitudDetail = ({
                   <MapPin className="w-4 h-4 mr-1" />
                   Pais: {solicitud.pais?.trim() ? solicitud.pais : 'Sin dato'}
                 </span>
+                <span className="flex items-center">
+                  <Percent className="w-4 h-4 mr-1" />
+                  Porcentaje: {solicitud.porcentaje !== null && solicitud.porcentaje !== undefined && solicitud.porcentaje !== '' ? `${solicitud.porcentaje}%` : '0%'}
+                </span>
               </div>
             </div>
           </div>
@@ -361,31 +367,37 @@ const SolicitudDetail = ({
               <h4 className="text-sm font-semibold text-gray-900 mb-3">
                 {pendingFiles.length} archivo{pendingFiles.length !== 1 ? 's' : ''} seleccionado{pendingFiles.length !== 1 ? 's' : ''}
               </h4>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Categoría
-                </label>
-                <select
-                  value={selectedCategoria}
-                  onChange={(e) => setSelectedCategoria(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
-                >
-                  {categorias.map(cat => (
-                    <option key={cat.value} value={cat.value}>{cat.label}</option>
-                  ))}
-                </select>
-              </div>
               <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
-                {pendingFiles.map((file, index) => (
+                {pendingFiles.map((pending, index) => (
                   <div key={index} className="flex items-center space-x-3 bg-white p-3 rounded-lg">
                     <FileText className="w-8 h-8 text-primary flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-900 font-medium truncate">
-                        {file.name}
+                        {pending.file.name}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {formatFileSize(file.size)}
+                        {formatFileSize(pending.file.size)}
                       </p>
+                      <div className="mt-2">
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Categoría
+                        </label>
+                        <select
+                          value={pending.categoria}
+                          onChange={(e) =>
+                            setPendingFiles(prev =>
+                              prev.map((item, i) =>
+                                i === index ? { ...item, categoria: e.target.value } : item
+                              )
+                            )
+                          }
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary text-sm"
+                        >
+                          {categorias.map(cat => (
+                            <option key={cat.value} value={cat.value}>{cat.label}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <button
                       onClick={() => removeFile(index)}

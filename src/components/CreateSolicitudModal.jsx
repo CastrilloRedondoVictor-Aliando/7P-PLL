@@ -192,7 +192,7 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
 
               <div>
                 <label htmlFor="filial" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Filial
+                  Empresa
                 </label>
                 <input
                   id="filial"
@@ -201,7 +201,7 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate }) => {
                   value={formData.filial}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
-                  placeholder="Ej: Madrid"
+                  placeholder="Ej: Perez-Llorca"
                 />
               </div>
 

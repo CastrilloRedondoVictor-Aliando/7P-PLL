@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../config/api';
@@ -116,8 +116,46 @@ const AdminDashboard = () => {
     Rechazada: { hover: 'hover:bg-red-50', selected: 'bg-red-50 ring-1 ring-red-100' }
   };
 
-  const handleEstadoChange = (solicitudId, nuevoEstado) => {
-    updateSolicitudEstado(solicitudId, nuevoEstado);
+  const handleEstadoChange = async (solicitud, nuevoEstado) => {
+    if (solicitud.estado === nuevoEstado) return;
+
+    if (nuevoEstado !== 'Aceptada') {
+      updateSolicitudEstado(solicitud.id, nuevoEstado);
+      return;
+    }
+
+    const { value: porcentajeValue, isConfirmed } = await Swal.fire({
+      title: 'Porcentaje de avance',
+      input: 'number',
+      inputLabel: 'Indica un porcentaje (0-100)',
+      inputValue: solicitud.porcentaje ?? '',
+      inputAttributes: {
+        min: 0,
+        max: 100,
+        step: 1
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#1e40af',
+      inputValidator: (value) => {
+        if (value === '' || value === null || value === undefined) {
+          return 'Introduce un porcentaje';
+        }
+        const parsed = Number(value);
+        if (Number.isNaN(parsed)) {
+          return 'El porcentaje debe ser numerico';
+        }
+        if (parsed < 0 || parsed > 100) {
+          return 'El porcentaje debe estar entre 0 y 100';
+        }
+        return undefined;
+      }
+    });
+
+    if (!isConfirmed) return;
+    const porcentaje = Number(porcentajeValue);
+    updateSolicitudEstado(solicitud.id, nuevoEstado, porcentaje);
   };
 
   const estadosDisponibles = ['Pendiente', 'Documentación pendiente', 'Aceptada', 'Rechazada'];
@@ -161,7 +199,7 @@ const AdminDashboard = () => {
                 key={estado}
                 type="button"
                 onClick={() => {
-                  handleEstadoChange(solicitud.id, estado);
+                  handleEstadoChange(solicitud, estado);
                   setOpenEstadoId(null);
                 }}
                 className={`w-full text-left px-3 py-2 text-sm ${estadoItemStyles[estado] || 'hover:bg-gray-50'} ${estado === solicitud.estado ? `font-semibold ${estadoSelectedStyles[estado] || 'bg-gray-50 text-gray-700'}` : 'text-gray-700'}`}
@@ -988,7 +1026,11 @@ const AdminDashboard = () => {
                       </span>
                       <span className="flex items-center">
                         <Building2 className="w-4 h-4 mr-1" />
-                        Filial: {selectedSolicitud.filial?.trim() ? selectedSolicitud.filial : 'Sin dato'}
+                        Empresa: {selectedSolicitud.filial?.trim() ? selectedSolicitud.filial : 'Sin dato'}
+                      </span>
+                      <span className="flex items-center">
+                        <Percent className="w-4 h-4 mr-1" />
+                        Porcentaje: {selectedSolicitud.porcentaje !== null && selectedSolicitud.porcentaje !== undefined && selectedSolicitud.porcentaje !== '' ? `${selectedSolicitud.porcentaje}%` : '0%'}
                       </span>
                       <span className="flex items-center">
                         <Clock className="w-4 h-4 mr-1" />

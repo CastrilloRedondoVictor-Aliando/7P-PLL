@@ -365,7 +365,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const updateSolicitudEstado = async (solicitudID, nuevoEstado) => {
+  const updateSolicitudEstado = async (solicitudID, nuevoEstado, porcentaje) => {
     const solicitudActual = solicitudes.find(s => s.id === solicitudID);
     
     if (!solicitudActual) {
@@ -379,7 +379,8 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({
           proyecto: solicitudActual.proyecto,
           descripcion: solicitudActual.comentarios,
-          estado: nuevoEstado
+          estado: nuevoEstado,
+          ...(porcentaje !== undefined ? { porcentaje } : {})
         }),
         token
       });

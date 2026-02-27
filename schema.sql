@@ -17,6 +17,7 @@ CREATE TABLE Solicitudes (
     descripcion NVARCHAR(MAX),
     estado NVARCHAR(30) NOT NULL CHECK (estado IN ('Pendiente', 'Documentación pendiente', 'Completado', 'Rechazado')),
     usuarioID INT NOT NULL,
+    porcentaje DECIMAL(5,2) NULL,
     createdAt DATETIME2 DEFAULT GETDATE(),
     updatedAt DATETIME2 DEFAULT GETDATE(),
     FOREIGN KEY (usuarioID) REFERENCES Usuarios(id) ON DELETE CASCADE
@@ -27,7 +28,7 @@ CREATE TABLE Documentos (
     id INT PRIMARY KEY IDENTITY(1,1),
     solicitudID INT NOT NULL,
     nombre NVARCHAR(200) NOT NULL,
-    tipo NVARCHAR(50) NOT NULL,
+    tipo NVARCHAR(255) NOT NULL,
     url NVARCHAR(500) NOT NULL, -- Guarda el nombre del blob para generar descargas firmadas
     categoria NVARCHAR(50) NOT NULL,
     vistoPorAdmin BIT DEFAULT 0,
