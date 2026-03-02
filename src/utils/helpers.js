@@ -21,7 +21,7 @@ export const formatDateShort = (dateString) => {
 export const getEstadoColor = (estado) => {
   const colores = {
     'Pendiente': { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-500' },
-    'Documentación pendiente': { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-500' },
+    'En revisión': { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-500' },
     'Aceptada': { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-500' },
     'Rechazada': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-500' }
   };

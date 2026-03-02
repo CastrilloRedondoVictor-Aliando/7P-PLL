@@ -420,7 +420,7 @@ export const AuthProvider = ({ children }) => {
       
       const estadoTexto = {
         'Aceptada': '¡Solicitud aceptada!',
-        'Documentación pendiente': 'Documentación pendiente',
+        'En revisión': 'En revisión',
         'Rechazada': 'Solicitud rechazada',
         'Pendiente': 'Solicitud pendiente'
       };
@@ -428,7 +428,7 @@ export const AuthProvider = ({ children }) => {
       const estadoIcono = {
         'Aceptada': 'success',
         'Rechazada': 'error',
-        'Documentación pendiente': 'info',
+        'En revisión': 'info',
         'Pendiente': 'warning'
       };
       

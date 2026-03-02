@@ -104,7 +104,7 @@ const AdminDashboard = () => {
   const stats = {
     total: solicitudes.length,
     pendientes: solicitudes.filter(s => s.estado === 'Pendiente').length,
-    enProceso: solicitudes.filter(s => s.estado === 'Documentación pendiente').length,
+    enProceso: solicitudes.filter(s => s.estado === 'En revisión').length,
     completadas: solicitudes.filter(s => s.estado === 'Aceptada').length,
     rechazadas: solicitudes.filter(s => s.estado === 'Rechazada').length,
   };
@@ -112,7 +112,7 @@ const AdminDashboard = () => {
   const estadoFiltroStyles = {
     Todos: { hover: 'hover:bg-blue-50', selected: 'bg-blue-50 ring-1 ring-blue-100' },
     Pendiente: { hover: 'hover:bg-yellow-50', selected: 'bg-yellow-50 ring-1 ring-yellow-100' },
-    'Documentación pendiente': { hover: 'hover:bg-blue-50', selected: 'bg-blue-50 ring-1 ring-blue-100' },
+    'En revisión': { hover: 'hover:bg-blue-50', selected: 'bg-blue-50 ring-1 ring-blue-100' },
     Aceptada: { hover: 'hover:bg-green-50', selected: 'bg-green-50 ring-1 ring-green-100' },
     Rechazada: { hover: 'hover:bg-red-50', selected: 'bg-red-50 ring-1 ring-red-100' }
   };
@@ -159,20 +159,20 @@ const AdminDashboard = () => {
     updateSolicitudEstado(solicitud.id, nuevoEstado, porcentaje);
   };
 
-  const estadosDisponibles = ['Pendiente', 'Documentación pendiente', 'Aceptada', 'Rechazada'];
+  const estadosDisponibles = ['Pendiente', 'En revisión', 'Aceptada', 'Rechazada'];
 
   const renderEstadoSelector = (solicitud) => {
     const estadoColors = getEstadoColor(solicitud.estado);
     const isOpen = openEstadoId === solicitud.id;
     const estadoItemStyles = {
       Pendiente: 'hover:bg-yellow-50',
-      'Documentación pendiente': 'hover:bg-blue-50',
+      'En revisión': 'hover:bg-blue-50',
       Aceptada: 'hover:bg-green-50',
       Rechazada: 'hover:bg-red-50'
     };
     const estadoSelectedStyles = {
       Pendiente: 'bg-yellow-50 text-yellow-700',
-      'Documentación pendiente': 'bg-blue-50 text-blue-700',
+      'En revisión': 'bg-blue-50 text-blue-700',
       Aceptada: 'bg-green-50 text-green-700',
       Rechazada: 'bg-red-50 text-red-700'
     };
@@ -782,14 +782,14 @@ const AdminDashboard = () => {
           <button
             type="button"
             onClick={() => {
-              setFilterEstado('Documentación pendiente');
+              setFilterEstado('En revisión');
               setCurrentPage(1);
             }}
-            className={`relative overflow-hidden rounded-xl shadow-md p-4 sm:p-6 text-left transition-colors hover:shadow-lg ${estadoFiltroStyles['Documentación pendiente'].hover} ${filterEstado === 'Documentación pendiente' ? estadoFiltroStyles['Documentación pendiente'].selected : 'bg-white'}`}
-            aria-label="Filtrar solicitudes con documentación pendiente"
+            className={`relative overflow-hidden rounded-xl shadow-md p-4 sm:p-6 text-left transition-colors hover:shadow-lg ${estadoFiltroStyles['En revisión'].hover} ${filterEstado === 'En revisión' ? estadoFiltroStyles['En revisión'].selected : 'bg-white'}`}
+            aria-label="Filtrar solicitudes en revisión"
           >
             <div className="relative z-10">
-              <p className="text-gray-600 text-xs sm:text-sm">Documentación pendiente</p>
+              <p className="text-gray-600 text-xs sm:text-sm">En revisión</p>
               <p className="text-2xl sm:text-3xl font-bold text-blue-600">{stats.enProceso}</p>
             </div>
             <Clock className="absolute -right-5 -bottom-5 w-20 h-20 sm:w-24 sm:h-24 text-blue-600 opacity-15" />

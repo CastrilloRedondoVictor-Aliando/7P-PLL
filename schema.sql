@@ -15,7 +15,7 @@ CREATE TABLE Solicitudes (
     numero NVARCHAR(50) NOT NULL UNIQUE,
     titulo NVARCHAR(200) NOT NULL,
     descripcion NVARCHAR(MAX),
-    estado NVARCHAR(30) NOT NULL CHECK (estado IN ('Pendiente', 'Documentación pendiente', 'Completado', 'Rechazado')),
+    estado NVARCHAR(30) NOT NULL CHECK (estado IN ('Pendiente', 'En revisión', 'Completado', 'Rechazado')),
     usuarioID INT NOT NULL,
     porcentaje DECIMAL(5,2) NULL,
     createdAt DATETIME2 DEFAULT GETDATE(),
