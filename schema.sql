@@ -1,26 +1,19 @@
--- Crear tabla de Usuarios
-CREATE TABLE Usuarios (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    nombre NVARCHAR(100) NOT NULL,
-    email NVARCHAR(100) NOT NULL UNIQUE,
-    password NVARCHAR(255) NOT NULL,
-    rol NVARCHAR(20) NOT NULL CHECK (rol IN ('admin', 'user')),
-    cargo NVARCHAR(100),
-    createdAt DATETIME2 DEFAULT GETDATE()
-);
-
 -- Crear tabla de Solicitudes
 CREATE TABLE Solicitudes (
     id INT PRIMARY KEY IDENTITY(1,1),
     numero NVARCHAR(50) NOT NULL UNIQUE,
-    titulo NVARCHAR(200) NOT NULL,
+    proyecto NVARCHAR(200) NOT NULL,
     descripcion NVARCHAR(MAX),
-    estado NVARCHAR(30) NOT NULL CHECK (estado IN ('Pendiente', 'En revisión', 'Completado', 'Rechazado')),
-    usuarioID INT NOT NULL,
+    estado NVARCHAR(30) NOT NULL CHECK (estado IN ('Pendiente', 'En revisión', 'Aceptada', 'Rechazada')),
+    usuarioOID NVARCHAR(50) NOT NULL,
+    pais NVARCHAR(100) NULL,
+    fechaInicio DATE NULL,
+    fechaFin DATE NULL,
+    empresa NVARCHAR(150) NULL,
+    horasCodigo NVARCHAR(100) NULL,
     porcentaje DECIMAL(5,2) NULL,
     createdAt DATETIME2 DEFAULT GETDATE(),
-    updatedAt DATETIME2 DEFAULT GETDATE(),
-    FOREIGN KEY (usuarioID) REFERENCES Usuarios(id) ON DELETE CASCADE
+    updatedAt DATETIME2 DEFAULT GETDATE()
 );
 
 -- Crear tabla de Documentos
@@ -40,25 +33,19 @@ CREATE TABLE Documentos (
 CREATE TABLE Mensajes (
     id INT PRIMARY KEY IDENTITY(1,1),
     solicitudID INT NOT NULL,
-    usuarioID INT NOT NULL,
+    usuarioOID NVARCHAR(50) NOT NULL,
     texto NVARCHAR(MAX) NOT NULL,
-    rol NVARCHAR(20) NOT NULL CHECK (rol IN ('admin', 'user')),
-    leido BIT DEFAULT 0,
+    rol NVARCHAR(20) NOT NULL CHECK (rol IN ('admin', 'user', 'view')),
+    leidoPorAdmin BIT DEFAULT 0,
+    leidoPorUser BIT DEFAULT 0,
     createdAt DATETIME2 DEFAULT GETDATE(),
-    FOREIGN KEY (solicitudID) REFERENCES Solicitudes(id) ON DELETE CASCADE,
-    FOREIGN KEY (usuarioID) REFERENCES Usuarios(id)
+    FOREIGN KEY (solicitudID) REFERENCES Solicitudes(id) ON DELETE CASCADE
 );
 
 -- Crear índices para mejorar el rendimiento
-CREATE INDEX idx_solicitudes_usuario ON Solicitudes(usuarioID);
+CREATE INDEX idx_solicitudes_usuario ON Solicitudes(usuarioOID);
 CREATE INDEX idx_solicitudes_estado ON Solicitudes(estado);
 CREATE INDEX idx_documentos_solicitud ON Documentos(solicitudID);
 CREATE INDEX idx_mensajes_solicitud ON Mensajes(solicitudID);
-CREATE INDEX idx_mensajes_leido ON Mensajes(leido);
-
--- Insertar usuarios de prueba (sin datos de solicitudes)
-INSERT INTO Usuarios (nombre, email, password, rol, cargo) VALUES
-('Admin User', 'admin@7p-pll.com', '$2a$10$XQqr5R9j9J8Z9Z9Z9Z9Z9e', 'admin', 'Engineering Manager'),
-('Victor Castrillo', 'victor@7p-pll.com', '$2a$10$XQqr5R9j9J8Z9Z9Z9Z9Z9e', 'user', 'Ingeniero Junior'),
-('Maria Rodriguez', 'maria@7p-pll.com', '$2a$10$XQqr5R9j9J8Z9Z9Z9Z9Z9e', 'user', 'Project Engineer'),
-('Carlos Gomez', 'carlos@7p-pll.com', '$2a$10$XQqr5R9j9J8Z9Z9Z9Z9Z9e', 'user', 'Lead Engineer');
+CREATE INDEX idx_mensajes_leido_admin ON Mensajes(leidoPorAdmin);
+CREATE INDEX idx_mensajes_leido_user ON Mensajes(leidoPorUser);

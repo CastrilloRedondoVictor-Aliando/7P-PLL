@@ -4,14 +4,26 @@ import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import Swal from 'sweetalert2';
 import {AuthContext } from './AuthContextDefinition';
 import { apiRequest } from '../config/api';
-import { loginRequest } from '../config/msalConfig';
+import { loginRequest, hasApiScope } from '../config/msalConfig';
 
 export const AuthProvider = ({ children }) => {
   const { instance, accounts } = useMsal();
+  const isAuthDebugEnabled = import.meta.env.VITE_AUTH_DEBUG === 'true';
+  const normalizeUser = useCallback((rawUser) => {
+    if (!rawUser) return null;
+    const resolvedName = rawUser.name || rawUser.nombre || rawUser.email || 'Usuario';
+    const resolvedEmail = rawUser.email || '';
+    return {
+      ...rawUser,
+      name: resolvedName,
+      nombre: rawUser.nombre || resolvedName,
+      email: resolvedEmail
+    };
+  }, []);
   const [user, setUser] = useState(() => {
     // Inicializar desde sessionStorage (más seguro que localStorage para tokens)
     const savedUser = sessionStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
+    return savedUser ? normalizeUser(JSON.parse(savedUser)) : null;
   });
   const [solicitudes, setSolicitudes] = useState([]);
   const [documentos, setDocumentos] = useState([]);
@@ -20,6 +32,18 @@ export const AuthProvider = ({ children }) => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isSignalRConnected, setIsSignalRConnected] = useState(false);
   const connectionRef = useRef(null);
+
+  const logTokenClaims = useCallback((token, source) => {
+    if (!isAuthDebugEnabled || !token) return;
+    try {
+      const decoded = JSON.parse(atob(token.split('.')[1]));
+      console.log(`${source} token iss:`, decoded.iss);
+      console.log(`${source} token aud:`, decoded.aud);
+      console.log(`${source} token exp:`, decoded.exp ? new Date(decoded.exp * 1000) : null);
+    } catch {
+      console.warn(`${source} token claims could not be decoded`);
+    }
+  }, [isAuthDebugEnabled]);
 
   // Sincronizar con sessionStorage cuando cambie el usuario
   useEffect(() => {
@@ -67,19 +91,29 @@ export const AuthProvider = ({ children }) => {
         ...loginRequest,
         account: accounts[0]
       });
-      return response.accessToken;
+      const token = hasApiScope ? response.accessToken : response.idToken;
+      if (!token) {
+        throw new Error(`No se obtuvo ${hasApiScope ? 'access token' : 'id token'} en acquireTokenSilent`);
+      }
+      logTokenClaims(token, `MSAL silent (${hasApiScope ? 'access' : 'id'})`);
+      return token;
     } catch (error) {
       console.error('Error obteniendo token silenciosamente:', error);
       // Si falla el token silencioso, intentar con popup
       try {
         const response = await instance.acquireTokenPopup(loginRequest);
-        return response.accessToken;
+        const token = hasApiScope ? response.accessToken : response.idToken;
+        if (!token) {
+          throw new Error(`No se obtuvo ${hasApiScope ? 'access token' : 'id token'} en acquireTokenPopup`);
+        }
+        logTokenClaims(token, `MSAL popup (${hasApiScope ? 'access' : 'id'})`);
+        return token;
       } catch (popupError) {
         console.error('Error obteniendo token con popup:', popupError);
         throw popupError;
       }
     }
-  }, [accounts, instance]);
+  }, [accounts, instance, logTokenClaims]);
 
   // Manejar login exitoso de MSAL - sincronizar con backend
   const handleLoginSuccess = useCallback(async (accessToken = null) => {
@@ -88,17 +122,37 @@ export const AuthProvider = ({ children }) => {
       
       // Si no se proporciona token, obtenerlo
       const token = accessToken || await getAccessToken();
+      logTokenClaims(token, 'sync-user request');
+
+      const account = accounts[0];
+      const idTokenClaims = account?.idTokenClaims || {};
+      const accountProfile = account
+        ? {
+            email:
+              account.username ||
+              idTokenClaims.email ||
+              idTokenClaims.preferred_username ||
+              idTokenClaims.upn ||
+              idTokenClaims.unique_name ||
+              idTokenClaims['signInNames.emailAddress'] ||
+              (Array.isArray(idTokenClaims.emails) ? idTokenClaims.emails.find(Boolean) : '') ||
+              '',
+            name:
+              account.name ||
+              idTokenClaims.name ||
+              `${idTokenClaims.given_name || ''} ${idTokenClaims.family_name || ''}`.trim() ||
+              ''
+          }
+        : undefined;
       
       // Sincronizar usuario con backend
       const data = await apiRequest('/auth/sync-user', {
         method: 'POST',
-        body: JSON.stringify({ token })
+        body: JSON.stringify({ token, profile: accountProfile })
       });
+      const normalizedUser = normalizeUser(data.user);
       
-      setUser(data.user);
-      
-      // Inicializar conexión SignalR después del login exitoso
-      await initializeSignalR();
+      setUser(normalizedUser);
       
       return true;
     } catch (error) {
@@ -113,7 +167,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [getAccessToken]);
+  }, [accounts, getAccessToken, normalizeUser]);
 
   // Inicializar conexión SignalR (usando @microsoft/signalr con Azure SignalR Service)
   const initializeSignalR = async () => {
@@ -302,7 +356,22 @@ export const AuthProvider = ({ children }) => {
     return data.url;
   };
 
+  const getDocumentPreviewUrl = async (documentoId) => {
+    const token = await getAccessToken();
+    const data = await apiRequest(`/documentos/${documentoId}/preview`, { token });
+    return data.url;
+  };
+
   const deleteDocument = async (documentoId) => {
+    if (user?.rol === 'view') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Accion no permitida',
+        text: 'El rol vista no puede eliminar documentos.',
+        confirmButtonColor: '#1e40af'
+      });
+      return;
+    }
     try {
       const token = await getAccessToken();
       await apiRequest(`/documentos/${documentoId}`, {
@@ -332,6 +401,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   const sendMessage = async (solicitudID, contenido) => {
+    if (user?.rol === 'view') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Accion no permitida',
+        text: 'El rol vista no puede enviar mensajes.',
+        confirmButtonColor: '#1e40af'
+      });
+      return;
+    }
     try {
       const token = await getAccessToken();
       
@@ -365,7 +443,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const updateSolicitudEstado = async (solicitudID, nuevoEstado, porcentaje) => {
+  const updateSolicitudEstado = async (solicitudID, nuevoEstado, porcentaje, options = {}) => {
     const solicitudActual = solicitudes.find(s => s.id === solicitudID);
     
     if (!solicitudActual) {
@@ -374,43 +452,23 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const token = await getAccessToken();
+      const payload = {
+        estado: nuevoEstado,
+        ...(porcentaje !== undefined ? { porcentaje } : {})
+      };
       const data = await apiRequest(`/solicitudes/${solicitudID}`, {
         method: 'PUT',
-        body: JSON.stringify({
-          proyecto: solicitudActual.proyecto,
-          descripcion: solicitudActual.comentarios,
-          estado: nuevoEstado,
-          ...(porcentaje !== undefined ? { porcentaje } : {})
-        }),
+        body: JSON.stringify(payload),
         token
       });
 
-      // Verificar si el backend devolvió información del usuario
-      let solicitudActualizada = data;
-      if (!data.usuarioNombre || !data.cargo) {
-        try {
-          const token = await getAccessToken();
-          const usuarios = await apiRequest('/auth/users', { token });
-          const usuario = usuarios.find(u => u.id === data.usuarioID);
-          if (usuario) {
-            solicitudActualizada = {
-              ...data,
-              usuarioNombre: usuario.nombre,
-              cargo: usuario.cargo,
-              departamento: usuario.departamento
-            };
-          }
-        } catch (error) {
-          console.error('Error al obtener información del usuario:', error);
-          // Usar datos actuales si hay error
-          solicitudActualizada = {
-            ...data,
-            usuarioNombre: solicitudActual.usuarioNombre,
-            cargo: solicitudActual.cargo,
-            departamento: solicitudActual.departamento
-          };
-        }
-      }
+      const solicitudActualizada = {
+        ...data,
+        comentarios: data.comentarios ?? solicitudActual.comentarios,
+        usuarioNombre: data.usuarioNombre ?? solicitudActual.usuarioNombre,
+        cargo: data.cargo ?? solicitudActual.cargo,
+        departamento: data.departamento ?? solicitudActual.departamento
+      };
 
       setSolicitudes(prev => 
         prev.map(sol => 
@@ -432,14 +490,18 @@ export const AuthProvider = ({ children }) => {
         'Pendiente': 'warning'
       };
       
-      Swal.fire({
-        icon: estadoIcono[nuevoEstado] || 'info',
-        title: estadoTexto[nuevoEstado] || 'Estado actualizado',
-        text: `El estado de la solicitud ha sido cambiado a: ${nuevoEstado}`,
-        confirmButtonColor: '#1e40af',
-        timer: 3000,
-        showConfirmButton: false
-      });
+      const nombreAviso = solicitudActualizada?.usuarioNombre || solicitudActual?.usuarioNombre || 'el usuario';
+
+      if (!options.silent) {
+        Swal.fire({
+          icon: estadoIcono[nuevoEstado] || 'info',
+          title: estadoTexto[nuevoEstado] || 'Estado actualizado',
+          text: `El estado de la solicitud ha sido cambiado a: ${nuevoEstado}. Se avisará a ${nombreAviso} mediante un correo.`,
+          confirmButtonColor: '#1e40af',
+          timer: 3000,
+          showConfirmButton: false
+        });
+      }
     } catch (error) {
       Swal.fire({
         icon: 'error',
@@ -451,15 +513,60 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const createSolicitud = async (usuarioID, proyecto, comentarios, extraFields = {}) => {
+  const deleteSolicitud = async (solicitudID) => {
+    if (user?.rol !== 'admin') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Accion no permitida',
+        text: 'Solo los administradores pueden eliminar solicitudes.',
+        confirmButtonColor: '#1e40af'
+      });
+      return false;
+    }
+
+    try {
+      const token = await getAccessToken();
+      await apiRequest(`/solicitudes/${solicitudID}`, {
+        method: 'DELETE',
+        token
+      });
+
+      setSolicitudes(prev => prev.filter(sol => sol.id !== solicitudID));
+      setDocumentos(prev => prev.filter(doc => doc.solicitudID !== solicitudID));
+      setMensajes(prev => prev.filter(msg => msg.solicitudID !== solicitudID));
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Solicitud eliminada',
+        text: 'La solicitud se ha eliminado correctamente',
+        confirmButtonColor: '#1e40af',
+        timer: 2000,
+        showConfirmButton: false
+      });
+
+      return true;
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo eliminar la solicitud',
+        confirmButtonColor: '#1e40af'
+      });
+      console.error('Error eliminando solicitud:', error);
+      return false;
+    }
+  };
+
+  const createSolicitud = async (usuarioID, proyecto, comentarios, extraFields = {}, userMeta = {}) => {
     try {
       const token = await getAccessToken();
       const normalizedExtras = {
         pais: extraFields.pais?.trim() || undefined,
         fechaInicio: extraFields.fechaInicio || undefined,
         fechaFin: extraFields.fechaFin || undefined,
-        filial: extraFields.filial?.trim() || undefined,
-        horasCodigo: extraFields.horasCodigo?.trim() || undefined
+        empresa: extraFields.empresa?.trim() || undefined,
+        horasCodigo: extraFields.horasCodigo?.trim() || undefined,
+        porcentaje: extraFields.porcentaje ?? undefined
       };
       const optionalPayload = Object.fromEntries(
         Object.entries(normalizedExtras).filter(([, value]) => value !== undefined && value !== '')
@@ -475,23 +582,14 @@ export const AuthProvider = ({ children }) => {
         token
       });
       
-      // Enriquecer la solicitud con datos del usuario si no los incluye el backend
-      if (!data.usuarioNombre || !data.cargo) {
-        try {
-          const token = await getAccessToken();
-          const usuarios = await apiRequest('/auth/users', { token });
-          const usuario = usuarios.find(u => u.id === usuarioID);
-          if (usuario) {
-            data.usuarioNombre = data.usuarioNombre || usuario.nombre;
-            data.usuarioApellidos = data.usuarioApellidos || usuario.apellidos;
-            data.cargo = data.cargo || usuario.cargo;
-          }
-        } catch (error) {
-          console.error('Error obteniendo datos del usuario:', error);
-        }
+      if (!data.usuarioNombre && userMeta?.nombre) {
+        data.usuarioNombre = userMeta.nombre;
+      }
+      if (!data.usuarioEmail && userMeta?.email) {
+        data.usuarioEmail = userMeta.email;
       }
       
-      setSolicitudes([...solicitudes, data]);
+      setSolicitudes(prev => [...prev, data]);
       return data;
     } catch (error) {
       Swal.fire({
@@ -513,7 +611,7 @@ export const AuthProvider = ({ children }) => {
         token
       });
 
-      const isAdmin = user?.rol === 'admin';
+      const isAdmin = user?.rol === 'admin' || user?.rol === 'view';
       setMensajes(prev => 
         prev.map(msg => {
           if (msg.solicitudID !== solicitudID) return msg;
@@ -552,13 +650,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const getUsers = async () => {
+  const resolveUsersByEmails = async (emails) => {
     try {
+      const normalized = (emails || [])
+        .map(email => (email || '').toString().trim().toLowerCase())
+        .filter(Boolean);
+      if (normalized.length === 0) return [];
       const token = await getAccessToken();
-      const data = await apiRequest('/auth/users', { token });
-      return data;
+      const data = await apiRequest('/auth/resolve-users', {
+        method: 'POST',
+        body: JSON.stringify({ emails: normalized }),
+        token
+      });
+      return data?.users || [];
     } catch (error) {
-      console.error('Error obteniendo usuarios:', error);
+      console.error('Error resolviendo usuarios:', error);
       return [];
     }
   };
@@ -582,31 +688,12 @@ export const AuthProvider = ({ children }) => {
         token
       });
 
-      // Enriquecer con datos de usuario si es necesario
-      let solicitudActualizada = data;
-      if (!data.usuarioNombre || !data.cargo) {
-        try {
-          const token = await getAccessToken();
-          const usuarios = await apiRequest('/auth/users', { token });
-          const usuario = usuarios.find(u => u.id === data.usuarioID);
-          if (usuario) {
-            solicitudActualizada = {
-              ...data,
-              usuarioNombre: usuario.nombre,
-              cargo: usuario.cargo,
-              departamento: usuario.departamento
-            };
-          }
-        } catch (error) {
-          console.error('Error al obtener información del usuario:', error);
-          solicitudActualizada = {
-            ...data,
-            usuarioNombre: solicitudActual.usuarioNombre,
-            cargo: solicitudActual.cargo,
-            departamento: solicitudActual.departamento
-          };
-        }
-      }
+      const solicitudActualizada = {
+        ...data,
+        usuarioNombre: data.usuarioNombre ?? solicitudActual.usuarioNombre,
+        cargo: data.cargo ?? solicitudActual.cargo,
+        departamento: data.departamento ?? solicitudActual.departamento
+      };
 
       setSolicitudes(prev => 
         prev.map(sol => 
@@ -652,31 +739,12 @@ export const AuthProvider = ({ children }) => {
         token
       });
 
-      // Enriquecer con datos de usuario si es necesario
-      let solicitudActualizada = data;
-      if (!data.usuarioNombre || !data.cargo) {
-        try {
-          const token = await getAccessToken();
-          const usuarios = await apiRequest('/auth/users', { token });
-          const usuario = usuarios.find(u => u.id === data.usuarioID);
-          if (usuario) {
-            solicitudActualizada = {
-              ...data,
-              usuarioNombre: usuario.nombre,
-              cargo: usuario.cargo,
-              departamento: usuario.departamento
-            };
-          }
-        } catch (error) {
-          console.error('Error al obtener información del usuario:', error);
-          solicitudActualizada = {
-            ...data,
-            usuarioNombre: solicitudActual.usuarioNombre,
-            cargo: solicitudActual.cargo,
-            departamento: solicitudActual.departamento
-          };
-        }
-      }
+      const solicitudActualizada = {
+        ...data,
+        usuarioNombre: data.usuarioNombre ?? solicitudActual.usuarioNombre,
+        cargo: data.cargo ?? solicitudActual.cargo,
+        departamento: data.departamento ?? solicitudActual.departamento
+      };
 
       setSolicitudes(prev => 
         prev.map(sol => 
@@ -715,17 +783,19 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     uploadDocument,
+    getDocumentPreviewUrl,
     getDocumentDownloadUrl,
     deleteDocument,
     sendMessage,
     updateSolicitudEstado,
+    deleteSolicitud,
     updateSolicitudTitulo,
     updateSolicitudDescripcion,
     createSolicitud,
     markMessagesAsRead,
     markDocsAsViewed,
     loadData,
-    getUsers,
+    resolveUsersByEmails,
     handleLoginSuccess,
     isInitializing
   };

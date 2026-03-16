@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import Swal from 'sweetalert2';
 import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check, Trash2, MapPin, Building2, Clock, Percent } from 'lucide-react';
 import { formatDate, getEstadoColor } from '../utils/helpers';
@@ -17,36 +17,23 @@ const SolicitudDetail = ({
   showCloseButton = false,
   onClose,
 }) => {
-  const { getAccessToken, getDocumentDownloadUrl, deleteDocument } = useAuth();
+  const { getAccessToken, getDocumentDownloadUrl, getDocumentPreviewUrl, deleteDocument } = useAuth();
   const [newMessage, setNewMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [pendingFiles, setPendingFiles] = useState([]);
   const [editingDescripcion, setEditingDescripcion] = useState(false);
   const [nuevaDescripcion, setNuevaDescripcion] = useState('');
-  const [usuarios, setUsuarios] = useState([]);
   const [isSendBouncing, setIsSendBouncing] = useState(false);
   const fileInputRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const estadoColors = getEstadoColor(solicitud.estado);
+  const shouldShowPercentage = !isUserView || solicitud.estado === 'Aceptada';
 
   const categorias = [
     { value: 'General', label: 'Principales funciones' },
     { value: 'Vuelos', label: 'Vuelos' },
     { value: 'Hoteles', label: 'Hoteles' }
   ];
-
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const token = await getAccessToken();
-        const data = await apiRequest('/auth/users', { token });
-        setUsuarios(data);
-      } catch (error) {
-        console.error('Error cargando usuarios:', error);
-      }
-    };
-    loadUsers();
-  }, [getAccessToken]);
 
   useLayoutEffect(() => {
     if (!messagesContainerRef.current) return;
@@ -173,8 +160,9 @@ const SolicitudDetail = ({
   };
 
   const getUserName = (userId) => {
-    const user = usuarios.find(u => u.id === userId);
-    return user ? user.nombre : 'Usuario desconocido';
+    const userMessage = mensajes.find(m => m.usuarioID === userId && m.usuarioNombre);
+    if (userMessage?.usuarioNombre) return userMessage.usuarioNombre;
+    return solicitud?.usuarioNombre || solicitud?.usuarioEmail || 'Usuario desconocido';
   };
 
   const handleEditDescripcion = () => {
@@ -198,8 +186,69 @@ const SolicitudDetail = ({
 
   const handleDownloadDocument = async (doc) => {
     try {
-      const url = await getDocumentDownloadUrl(doc.id);
-      window.open(url, '_blank', 'noopener');
+      const [previewUrl, downloadUrl] = await Promise.all([
+        getDocumentPreviewUrl(doc.id),
+        getDocumentDownloadUrl(doc.id)
+      ]);
+
+      const fileName = doc?.nombre || '';
+      const fileType = doc?.tipo || '';
+      const lowerName = fileName.toLowerCase();
+      const isPdf = fileType.includes('pdf') || lowerName.endsWith('.pdf');
+      const isImage = fileType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(lowerName);
+      const isOffice = /\.(docx?|xlsx?|pptx?)$/.test(lowerName) ||
+        /(word|excel|powerpoint)/i.test(fileType);
+      const previewSrc = isOffice
+        ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}&zoom=50`
+        : previewUrl;
+      const canEmbed = isPdf || isImage || isOffice;
+      const isMobile = window.matchMedia('(max-width: 1023px)').matches;
+
+      if (isMobile) {
+        const mobileResult = await Swal.fire({
+          title: doc?.nombre ? `Previsualizar ${doc.nombre}` : 'Previsualizar documento',
+          text: 'En movil la previsualizacion se abre en una nueva pestaña para poder usar los controles.',
+          showCancelButton: true,
+          showDenyButton: true,
+          confirmButtonText: 'Abrir vista',
+          denyButtonText: 'Descargar',
+          cancelButtonText: 'Cerrar',
+          confirmButtonColor: '#1e40af'
+        });
+
+        if (mobileResult.isConfirmed) {
+          window.open(previewSrc, '_blank', 'noopener');
+        } else if (mobileResult.isDenied) {
+          window.open(downloadUrl, '_blank', 'noopener');
+        }
+        return;
+      }
+
+      const result = await Swal.fire({
+        title: doc?.nombre ? `Previsualizar ${doc.nombre}` : 'Previsualizar documento',
+        html: canEmbed
+          ? `
+            <div style="width:100%;height:60vh;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
+              <iframe src="${previewSrc}" title="Previsualizacion" style="width:100%;height:100%;border:0;"></iframe>
+            </div>
+            <p style="margin-top:10px;font-size:14px;color:#6b7280;">Si no puedes ver la previsualizacion, usa el boton Descargar.</p>
+          `
+          : `
+            <div style="padding:18px;border-radius:10px;border:1px solid #e5e7eb;background:#f8fafc;">
+              <p style="font-size:14px;color:#334155;">Este tipo de archivo no admite previsualizacion en el navegador.</p>
+            </div>
+            <p style="margin-top:10px;font-size:14px;color:#6b7280;">Usa el boton Descargar para abrirlo.</p>
+          `,
+        showCancelButton: true,
+        confirmButtonText: 'Descargar',
+        cancelButtonText: 'Cerrar',
+        confirmButtonColor: '#1e40af',
+        width: 900
+      });
+
+      if (result.isConfirmed) {
+        window.open(downloadUrl, '_blank', 'noopener');
+      }
     } catch (error) {
       Swal.fire({
         icon: 'error',
@@ -231,12 +280,12 @@ const SolicitudDetail = ({
   return (
     <div className="bg-white rounded-xl shadow-lg overflow-hidden">
       {/* Cabecera */}
-      <div className="bg-gradient-to-r from-primary to-blue-600 text-white p-4 sm:p-6">
+      <div className={`${isUserView ? 'bg-primary' : 'bg-gradient-to-r from-primary to-blue-600'} text-white p-4 sm:p-6`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
           <div>
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-xl sm:text-2xl font-bold">
-                {(solicitud.pais?.trim() ? solicitud.pais.toUpperCase() : 'SIN PAIS')}
+                {(solicitud.pais?.trim() ? solicitud.pais.toUpperCase() : 'SIN DESTINO')}
                 {' - '}
                 {solicitud.fechaInicio
                   ? new Date(solicitud.fechaInicio)
@@ -269,12 +318,14 @@ const SolicitudDetail = ({
               <div className="flex flex-wrap items-center gap-3">
                 <span className="flex items-center">
                   <MapPin className="w-4 h-4 mr-1" />
-                  Pais: {solicitud.pais?.trim() ? solicitud.pais : 'Sin dato'}
+                  Destino: {solicitud.pais?.trim() ? solicitud.pais : 'Sin destino'}
                 </span>
-                <span className="flex items-center">
-                  <Percent className="w-4 h-4 mr-1" />
-                  Porcentaje: {solicitud.porcentaje !== null && solicitud.porcentaje !== undefined && solicitud.porcentaje !== '' ? `${solicitud.porcentaje}%` : '0%'}
-                </span>
+                {shouldShowPercentage && (
+                  <span className="flex items-center">
+                    <Percent className="w-4 h-4 mr-1" />
+                    Porcentaje: {solicitud.porcentaje !== null && solicitud.porcentaje !== undefined && solicitud.porcentaje !== '' ? `${solicitud.porcentaje}%` : '0%'}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -678,8 +729,8 @@ const SolicitudDetail = ({
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder="Escribe un mensaje..."
-              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+              placeholder={isUserView ? 'Debes ser administrador para poder enviar mensajes' : 'Escribe un mensaje...'}
+              className="flex-1 px-4 py-2 text-xs sm:text-base border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
             />
             <button
               onClick={handleSendMessage}

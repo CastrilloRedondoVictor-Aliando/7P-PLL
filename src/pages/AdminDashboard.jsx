@@ -1,6 +1,7 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown } from 'lucide-react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown, Upload, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
+import JSZip from 'jszip';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../config/api';
@@ -8,18 +9,20 @@ import { formatDate, getEstadoColor } from '../utils/helpers';
 import CreateSolicitudModal from '../components/CreateSolicitudModal';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudTitulo, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, getUsers, getDocumentDownloadUrl, deleteDocument, getAccessToken } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudTitulo, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken } = useAuth();
+  const isViewRole = user?.rol === 'view';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterFecha, setFilterFecha] = useState('');
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [isLoadingAvailableUsers, setIsLoadingAvailableUsers] = useState(false);
   const [showMessagesDropdown, setShowMessagesDropdown] = useState(false);
   const [showDocsDropdown, setShowDocsDropdown] = useState(false);
   const [editingTitulo, setEditingTitulo] = useState(false);
   const [nuevoTitulo, setNuevoTitulo] = useState('');
-  const [usuarios, setUsuarios] = useState([]);
   const messagesContainerRef = useRef(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
   const [isSendBouncing, setIsSendBouncing] = useState(false);
@@ -27,25 +30,23 @@ const AdminDashboard = () => {
   const [isDocsDropdownClosing, setIsDocsDropdownClosing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [openEstadoId, setOpenEstadoId] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(loading);
+  const [isLoadingClosing, setIsLoadingClosing] = useState(false);
+  const [isDownloadingSolicitud, setIsDownloadingSolicitud] = useState(false);
   const messagesButtonRef = useRef(null);
+  const mobileMessagesButtonRef = useRef(null);
   const messagesDropdownRef = useRef(null);
+  const mobileMessagesDropdownRef = useRef(null);
   const docsButtonRef = useRef(null);
+  const mobileDocsButtonRef = useRef(null);
   const docsDropdownRef = useRef(null);
+  const mobileDocsDropdownRef = useRef(null);
   const joinedGroupsRef = useRef(new Set());
+  const importInputRef = useRef(null);
   const itemsPerPage = 10;
 
-  // Cargar usuarios al montar el componente
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const data = await getUsers();
-        setUsuarios(data);
-      } catch (error) {
-        console.error('Error cargando usuarios:', error);
-      }
-    };
-    loadUsers();
-  }, [getUsers]);
 
   // Contar mensajes no leídos de usuarios
   const unreadMessages = mensajes.filter(m => {
@@ -107,6 +108,11 @@ const AdminDashboard = () => {
     enProceso: solicitudes.filter(s => s.estado === 'En revisión').length,
     completadas: solicitudes.filter(s => s.estado === 'Aceptada').length,
     rechazadas: solicitudes.filter(s => s.estado === 'Rechazada').length,
+  };
+
+  const getProyectoDisplayName = (proyecto) => {
+    const normalized = proyecto?.toString().trim();
+    return normalized ? normalized : 'Proyecto sin nombre';
   };
 
   const estadoFiltroStyles = {
@@ -177,6 +183,14 @@ const AdminDashboard = () => {
       Rechazada: 'bg-red-50 text-red-700'
     };
 
+    if (isViewRole) {
+      return (
+        <span className={`px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap inline-flex items-center ${estadoColors.bg} ${estadoColors.text}`}>
+          {solicitud.estado}
+        </span>
+      );
+    }
+
     return (
       <div className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
         <button
@@ -215,12 +229,11 @@ const AdminDashboard = () => {
   };
 
   const getUserName = (userId) => {
-    const usuario = usuarios.find(u => u.id === userId);
-    if (usuario) return usuario.nombre;
-    
-    // Fallback: buscar en solicitudes
     const solicitud = solicitudes.find(s => s.usuarioID === userId);
-    return solicitud?.usuarioNombre || 'Usuario desconocido';
+    if (solicitud?.usuarioNombre) return solicitud.usuarioNombre;
+    if (solicitud?.usuarioEmail) return solicitud.usuarioEmail;
+    const mensaje = mensajes.find(m => m.usuarioID === userId && m.usuarioNombre);
+    return mensaje?.usuarioNombre || 'Usuario desconocido';
   };
 
   const solicitudDocumentos = selectedSolicitud
@@ -302,9 +315,13 @@ const AdminDashboard = () => {
     const handleOutsideClick = (event) => {
       const target = event.target;
       const isMessagesClick = messagesDropdownRef.current?.contains(target) ||
-        messagesButtonRef.current?.contains(target);
+        mobileMessagesDropdownRef.current?.contains(target) ||
+        messagesButtonRef.current?.contains(target) ||
+        mobileMessagesButtonRef.current?.contains(target);
       const isDocsClick = docsDropdownRef.current?.contains(target) ||
-        docsButtonRef.current?.contains(target);
+        mobileDocsDropdownRef.current?.contains(target) ||
+        docsButtonRef.current?.contains(target) ||
+        mobileDocsButtonRef.current?.contains(target);
 
       if (showMessagesDropdown && !isMessagesClick) {
         closeMessagesDropdown();
@@ -335,6 +352,24 @@ const AdminDashboard = () => {
     return () => document.removeEventListener('mousedown', handleEstadoOutsideClick);
   }, [openEstadoId]);
 
+  useEffect(() => {
+    if (loading) {
+      setShowLoadingScreen(true);
+      setIsLoadingClosing(false);
+      return;
+    }
+
+    if (!showLoadingScreen) return;
+
+    setIsLoadingClosing(true);
+    const timeoutId = setTimeout(() => {
+      setShowLoadingScreen(false);
+      setIsLoadingClosing(false);
+    }, 180);
+
+    return () => clearTimeout(timeoutId);
+  }, [loading, showLoadingScreen]);
+
   const handleLogout = async () => {
     const result = await Swal.fire({
       title: '¿Cerrar sesión?',
@@ -352,19 +387,106 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleCreateSolicitud = async (usuarioID, proyecto, comentarios, extraFields) => {
-    const newSolicitud = await createSolicitud(usuarioID, proyecto, comentarios, extraFields);
+  const handleCreateSolicitud = async (emails, proyecto, comentarios, extraFields) => {
+    const normalizedEmails = Array.from(
+      new Set(
+        (Array.isArray(emails) ? emails : [emails])
+          .map(email => (email || '').toString().trim().toLowerCase())
+          .filter(Boolean)
+      )
+    );
+
+    if (normalizedEmails.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Emails requeridos',
+        text: 'Introduce al menos un email valido para crear la solicitud',
+        confirmButtonColor: '#1e40af'
+      });
+      return;
+    }
+
+    const resolvedUsers = await resolveUsersByEmails(normalizedEmails);
+    const usersByEmail = new Map(
+      resolvedUsers
+        .filter(u => u.email)
+        .map(u => [u.email.toLowerCase(), u])
+    );
+
+    const created = [];
+    const failed = [];
+    const missing = normalizedEmails.filter(email => !usersByEmail.has(email));
+
+    for (const email of normalizedEmails) {
+      const userInfo = usersByEmail.get(email);
+      if (!userInfo?.oid) {
+        failed.push(email);
+        continue;
+      }
+      try {
+        const result = await createSolicitud(
+          userInfo.oid,
+          proyecto,
+          comentarios,
+          extraFields,
+          { nombre: userInfo.nombre, email: userInfo.email }
+        );
+        if (result) {
+          created.push(result);
+        } else {
+          failed.push(email);
+        }
+      } catch (error) {
+        failed.push(email);
+        console.error(`Error creando solicitud para ${email}:`, error);
+      }
+    }
+
+    const createdCount = created.length;
+    const failedCount = failed.length;
+    const missingCount = missing.length;
+    const title = createdCount === 1 ? '¡Solicitud creada!' : '¡Solicitudes creadas!';
+    const baseText = createdCount === 1
+      ? `Solicitud creada exitosamente para ${created[0]?.usuarioNombre || created[0]?.usuarioEmail || 'el usuario'}`
+      : `Se crearon ${createdCount} solicitudes correctamente`;
+    const extraInfo = missingCount > 0
+      ? ` ${missingCount} emails no se encontraron en Entra.`
+      : '';
+    const text = failedCount > 0
+      ? `${baseText}. ${failedCount} no se pudieron crear.${extraInfo}`
+      : `${baseText}.${extraInfo}`;
+
     Swal.fire({
-      icon: 'success',
-      title: '¡Solicitud creada!',
-      text: `Solicitud creada exitosamente para ${newSolicitud?.usuarioNombre || 'el usuario'}`,
+      icon: failedCount > 0 || missingCount > 0 ? 'warning' : 'success',
+      title,
+      text,
       confirmButtonColor: '#1e40af',
-      timer: 3000,
+      timer: 3500,
       showConfirmButton: false
     });
   };
 
+  useEffect(() => {
+    const loadAvailableUsers = async () => {
+      if (!isCreateModalOpen) return;
+      try {
+        setIsLoadingAvailableUsers(true);
+        const token = await getAccessToken();
+        const data = await apiRequest('/auth/users?role=user', { token });
+        setAvailableUsers(Array.isArray(data?.users) ? data.users : []);
+      } catch (error) {
+        console.error('Error cargando usuarios para nueva solicitud:', error);
+        setAvailableUsers([]);
+      } finally {
+        setIsLoadingAvailableUsers(false);
+      }
+    };
+
+    loadAvailableUsers();
+  }, [isCreateModalOpen, getAccessToken]);
+
   const handleSendMessage = () => {
+    if (isViewRole) return;
     if (selectedSolicitud && newMessage.trim()) {
       sendMessage(selectedSolicitud.id, newMessage);
       setNewMessage('');
@@ -451,8 +573,69 @@ const AdminDashboard = () => {
 
   const handleDownloadDocument = async (doc) => {
     try {
-      const url = await getDocumentDownloadUrl(doc.id);
-      window.open(url, '_blank', 'noopener');
+      const [previewUrl, downloadUrl] = await Promise.all([
+        getDocumentPreviewUrl(doc.id),
+        getDocumentDownloadUrl(doc.id)
+      ]);
+
+      const fileName = doc?.nombre || '';
+      const fileType = doc?.tipo || '';
+      const lowerName = fileName.toLowerCase();
+      const isPdf = fileType.includes('pdf') || lowerName.endsWith('.pdf');
+      const isImage = fileType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(lowerName);
+      const isOffice = /\.(docx?|xlsx?|pptx?)$/.test(lowerName) ||
+        /(word|excel|powerpoint)/i.test(fileType);
+      const previewSrc = isOffice
+        ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}&zoom=50`
+        : previewUrl;
+      const canEmbed = isPdf || isImage || isOffice;
+      const isMobile = window.matchMedia('(max-width: 1023px)').matches;
+
+      if (isMobile) {
+        const mobileResult = await Swal.fire({
+          title: doc?.nombre ? `Previsualizar ${doc.nombre}` : 'Previsualizar documento',
+          text: 'En movil la previsualizacion se abre en una nueva pestaña para poder usar los controles.',
+          showCancelButton: true,
+          showDenyButton: true,
+          confirmButtonText: 'Abrir vista',
+          denyButtonText: 'Descargar',
+          cancelButtonText: 'Cerrar',
+          confirmButtonColor: '#1e40af'
+        });
+
+        if (mobileResult.isConfirmed) {
+          window.open(previewSrc, '_blank', 'noopener');
+        } else if (mobileResult.isDenied) {
+          window.open(downloadUrl, '_blank', 'noopener');
+        }
+        return;
+      }
+
+      const result = await Swal.fire({
+        title: doc?.nombre ? `Previsualizar ${doc.nombre}` : 'Previsualizar documento',
+        html: canEmbed
+          ? `
+            <div style="width:100%;height:60vh;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
+              <iframe src="${previewSrc}" title="Previsualizacion" style="width:100%;height:100%;border:0;"></iframe>
+            </div>
+            <p style="margin-top:10px;font-size:14px;color:#6b7280;">Si no puedes ver la previsualizacion, usa el boton Descargar.</p>
+          `
+          : `
+            <div style="padding:18px;border-radius:10px;border:1px solid #e5e7eb;background:#f8fafc;">
+              <p style="font-size:14px;color:#334155;">Este tipo de archivo no admite previsualizacion en el navegador.</p>
+            </div>
+            <p style="margin-top:10px;font-size:14px;color:#6b7280;">Usa el boton Descargar para abrirlo.</p>
+          `,
+        showCancelButton: true,
+        confirmButtonText: 'Descargar',
+        cancelButtonText: 'Cerrar',
+        confirmButtonColor: '#1e40af',
+        width: 900
+      });
+
+      if (result.isConfirmed) {
+        window.open(downloadUrl, '_blank', 'noopener');
+      }
     } catch (error) {
       Swal.fire({
         icon: 'error',
@@ -461,6 +644,148 @@ const AdminDashboard = () => {
         confirmButtonColor: '#1e40af'
       });
       console.error('Error descargando documento:', error);
+    }
+  };
+
+  const sanitizePathSegment = (value, fallback = 'sin-valor') => {
+    const text = value?.toString().trim() || fallback;
+    return text
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const getSolicitudInfoText = (solicitud) => {
+    const infoRows = [
+      ['Proyecto', getProyectoDisplayName(solicitud.proyecto)],
+      ['Usuario', getUserName(solicitud.usuarioID)],
+      ['Usuario email', solicitud.usuarioEmail || ''],
+      ['Estado', solicitud.estado || ''],
+      ['Porcentaje', solicitud.porcentaje ?? 0],
+      ['Destino', solicitud.pais || ''],
+      ['Empresa', solicitud.empresa || solicitud.filial || ''],
+      ['Fecha inicio', solicitud.fechaInicio ? formatDate(solicitud.fechaInicio) : ''],
+      ['Fecha fin', solicitud.fechaFin ? formatDate(solicitud.fechaFin) : ''],
+      ['Codigo de horas', solicitud.horasCodigo || ''],
+      ['Principales funciones', solicitud.comentarios || ''],
+      ['Fecha creacion', solicitud.fechaCreacion ? formatDate(solicitud.fechaCreacion) : ''],
+      ['Fecha actualizacion', solicitud.fechaActualizacion ? formatDate(solicitud.fechaActualizacion) : '']
+    ];
+
+    return infoRows.map(([label, value]) => `${label}: ${value ?? ''}`).join('\n');
+  };
+
+  const toZipToken = (value, fallback = 'SinDato') => {
+    const normalized = value
+      ?.toString()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/[^a-zA-Z0-9\s]/g, ' ')
+      .trim();
+
+    if (!normalized) return fallback;
+
+    const words = normalized.split(/\s+/).filter(Boolean);
+    const token = words
+      .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`)
+      .join('');
+
+    return token || fallback;
+  };
+
+  const getSolicitudZipName = (solicitud) => {
+    const userName = toZipToken(getUserName(solicitud.usuarioID), 'UsuarioDesconocido');
+    const destino = toZipToken(solicitud.pais, 'SinDestino');
+
+    const fechaInicio = solicitud.fechaInicio ? new Date(solicitud.fechaInicio) : null;
+    const hasValidDate = fechaInicio && !Number.isNaN(fechaInicio.getTime());
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const month = hasValidDate ? months[fechaInicio.getMonth()] : 'sin-mes';
+    const year = hasValidDate ? fechaInicio.getFullYear() : 'SinAno';
+
+    return sanitizePathSegment(`${userName}-${destino}-${month}-${year}`);
+  };
+
+  const handleDownloadSolicitudPackage = async () => {
+    if (!selectedSolicitud || isDownloadingSolicitud) return;
+
+    setIsDownloadingSolicitud(true);
+    try {
+      const zip = new JSZip();
+      const zipRootName = getSolicitudZipName(selectedSolicitud);
+      const rootFolder = zip.folder(zipRootName);
+
+      rootFolder.file('InformacionSolicitud.txt', getSolicitudInfoText(selectedSolicitud));
+
+      const docsByCategory = solicitudDocumentos.reduce((acc, doc) => {
+        const category = doc.categoria?.trim() || 'Sin categoria';
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(doc);
+        return acc;
+      }, {});
+
+      const usedFileNamesByFolder = new Map();
+
+      for (const [category, docs] of Object.entries(docsByCategory)) {
+        const normalizedCategory = category === 'General' ? 'Principales funciones' : category;
+        const folderName = sanitizePathSegment(normalizedCategory, 'Sin categoria');
+        const categoryFolder = rootFolder.folder(folderName);
+
+        for (const doc of docs) {
+          const downloadUrl = await getDocumentDownloadUrl(doc.id);
+          const response = await fetch(downloadUrl);
+          if (!response.ok) {
+            throw new Error(`No se pudo descargar el archivo ${doc.nombre}`);
+          }
+
+          const fileBlob = await response.blob();
+          const fileBuffer = await fileBlob.arrayBuffer();
+
+          const originalName = sanitizePathSegment(doc.nombre || `documento_${doc.id}`);
+          const folderKey = folderName;
+          if (!usedFileNamesByFolder.has(folderKey)) {
+            usedFileNamesByFolder.set(folderKey, new Set());
+          }
+
+          const usedNames = usedFileNamesByFolder.get(folderKey);
+          let finalName = originalName;
+          let duplicateIndex = 1;
+          while (usedNames.has(finalName)) {
+            const dotIndex = originalName.lastIndexOf('.');
+            if (dotIndex > 0) {
+              const baseName = originalName.slice(0, dotIndex);
+              const extension = originalName.slice(dotIndex);
+              finalName = `${baseName} (${duplicateIndex})${extension}`;
+            } else {
+              finalName = `${originalName} (${duplicateIndex})`;
+            }
+            duplicateIndex += 1;
+          }
+
+          usedNames.add(finalName);
+          categoryFolder.file(finalName, fileBuffer);
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const zipUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = zipUrl;
+      link.download = `${zipRootName}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(zipUrl);
+    } catch (error) {
+      console.error('Error descargando solicitud completa:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al descargar',
+        text: 'No se pudo generar la descarga completa de la solicitud.',
+        confirmButtonColor: '#1e40af'
+      });
+    } finally {
+      setIsDownloadingSolicitud(false);
     }
   };
 
@@ -481,8 +806,8 @@ const AdminDashboard = () => {
       Email: sol.usuarioEmail || '',
       Estado: sol.estado || '',
       Porcentaje: sol.porcentaje !== null && sol.porcentaje !== undefined ? sol.porcentaje : 0,
-      Pais: sol.pais || '',
-      Empresa: sol.filial || '',
+      Destino: sol.pais || '',
+      Empresa: sol.empresa || sol.filial || '',
       'Fecha inicio': sol.fechaInicio ? formatDate(sol.fechaInicio) : '',
       'Fecha fin': sol.fechaFin ? formatDate(sol.fechaFin) : '',
       'Codigo de horas': sol.horasCodigo || '',
@@ -545,6 +870,304 @@ const AdminDashboard = () => {
     XLSX.writeFile(workbook, `solicitudes_${fileDate}.xlsx`);
   };
 
+  const parseExcelDate = (value) => {
+    if (!value) return undefined;
+    if (typeof value === 'number') {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (!parsed) return undefined;
+      const date = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+      return Number.isNaN(date.getTime()) ? undefined : date.toISOString().slice(0, 10);
+    }
+
+    const raw = value.toString().trim().toLowerCase();
+    const match = raw.match(/^(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+de\s+(\d{4})$/i);
+    if (match) {
+      const day = Number(match[1]);
+      const monthName = match[2]
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '');
+      const year = Number(match[3]);
+      const months = {
+        enero: 0,
+        febrero: 1,
+        marzo: 2,
+        abril: 3,
+        mayo: 4,
+        junio: 5,
+        julio: 6,
+        agosto: 7,
+        septiembre: 8,
+        setiembre: 8,
+        octubre: 9,
+        noviembre: 10,
+        diciembre: 11
+      };
+      const monthIndex = months[monthName];
+      if (monthIndex !== undefined) {
+        const date = new Date(Date.UTC(year, monthIndex, day));
+        return Number.isNaN(date.getTime()) ? undefined : date.toISOString().slice(0, 10);
+      }
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date.toISOString().slice(0, 10);
+  };
+
+  const parsePercentage = (value) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    const raw = typeof value === 'string' ? value.replace('%', '').trim() : value;
+    const parsed = Number(raw);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  };
+
+  const parseEstadoImport = (value) => {
+    const normalized = (value || '')
+      .toString()
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '');
+
+    if (!normalized) return 'Pendiente';
+    if (normalized === 'pendiente') return 'Pendiente';
+    if (normalized === 'aceptada') return 'Aceptada';
+    if (normalized === 'rechazada') return 'Rechazada';
+    if (normalized === 'en revision') return 'En revisión';
+    return 'Pendiente';
+  };
+
+  const normalizeStringToken = (value) =>
+    value
+      ?.toString()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .trim()
+      .toLowerCase() || '';
+
+  const normalizeHeaderName = (value) =>
+    normalizeStringToken(value)
+      .replace(/\./g, '')
+      .replace(/\s+/g, ' ');
+
+  const getRowValueByHeaders = (row, headerAliases) => {
+    const aliases = new Set(headerAliases.map(alias => normalizeHeaderName(alias)));
+    const key = Object.keys(row || {}).find(currentKey => aliases.has(normalizeHeaderName(currentKey)));
+    return key ? row[key] : '';
+  };
+
+  const getDestinoFromTrayecto = (trayectoCompleto) => {
+    if (!trayectoCompleto) return undefined;
+    const normalizedTrayecto = trayectoCompleto.toString().trim();
+    if (!normalizedTrayecto) return undefined;
+
+    const legs = normalizedTrayecto
+      .split('/')
+      .map(segment => segment.trim())
+      .filter(Boolean)
+      .map((segment) => {
+        const match = segment.match(/^(.+?)\s*[-–]\s*(.+)$/);
+        if (!match) return null;
+        return {
+          from: match[1].trim(),
+          to: match[2].trim()
+        };
+      })
+      .filter(Boolean);
+
+    if (!legs.length) {
+      return normalizedTrayecto;
+    }
+
+    const points = [];
+    legs.forEach((leg, index) => {
+      if (index === 0) {
+        points.push(leg.from, leg.to);
+        return;
+      }
+
+      const lastPoint = points[points.length - 1];
+      if (normalizeStringToken(lastPoint) === normalizeStringToken(leg.from)) {
+        points.push(leg.to);
+      } else {
+        points.push(leg.from, leg.to);
+      }
+    });
+
+    const cleanPoints = points.filter(point => point?.trim());
+    if (!cleanPoints.length) return undefined;
+    if (cleanPoints.length === 1) return cleanPoints[0];
+
+    const origin = cleanPoints[0];
+    const finalPoint = cleanPoints[cleanPoints.length - 1];
+    const isRoundTrip = normalizeStringToken(origin) === normalizeStringToken(finalPoint) && cleanPoints.length > 2;
+
+    if (!isRoundTrip) {
+      return finalPoint;
+    }
+
+    if (cleanPoints.length % 2 === 1) {
+      return cleanPoints[Math.floor(cleanPoints.length / 2)];
+    }
+
+    const leftCenter = cleanPoints[(cleanPoints.length / 2) - 1];
+    const rightCenter = cleanPoints[cleanPoints.length / 2];
+
+    if (normalizeStringToken(leftCenter) === normalizeStringToken(rightCenter)) {
+      return leftCenter;
+    }
+
+    return `${leftCenter} / ${rightCenter}`;
+  };
+
+  const handleImportExcel = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsImporting(true);
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!worksheet) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se encontro una hoja en el Excel',
+          confirmButtonColor: '#1e40af'
+        });
+        return;
+      }
+
+      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      if (!rows.length) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin datos',
+          text: 'El Excel no contiene filas para importar',
+          confirmButtonColor: '#1e40af'
+        });
+        return;
+      }
+
+      const rowHeaders = Object.keys(rows[0] || {}).map(normalizeHeaderName);
+      const requiredHeaderGroups = [
+        ['Correo electrónico', 'correo electronico', 'Email']
+      ];
+      const missingHeaders = requiredHeaderGroups
+        .map(group => group.some(option => rowHeaders.includes(normalizeHeaderName(option))) ? null : group[0])
+        .filter(Boolean);
+      if (missingHeaders.length > 0) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Formato incorrecto',
+          text: `Faltan columnas requeridas: ${missingHeaders.join(', ')}`,
+          confirmButtonColor: '#1e40af'
+        });
+        return;
+      }
+
+      const emailsToResolve = Array.from(new Set(
+        rows
+          .map((row) => getRowValueByHeaders(row, ['Correo electrónico', 'correo electronico', 'Email']))
+          .map((value) => (value || '').toString().trim().toLowerCase())
+          .filter(Boolean)
+      ));
+
+      const resolvedUsers = emailsToResolve.length > 0
+        ? await resolveUsersByEmails(emailsToResolve)
+        : [];
+      const usersByEmail = new Map(
+        resolvedUsers
+          .filter((resolvedUser) => resolvedUser?.email)
+          .map((resolvedUser) => [resolvedUser.email.toLowerCase(), resolvedUser])
+      );
+
+      let createdCount = 0;
+      let failedCount = 0;
+
+      for (let i = 0; i < rows.length; i += 1) {
+        const row = rows[i];
+        const rowNumber = i + 2;
+        const emailCell = getRowValueByHeaders(row, ['Correo electrónico', 'correo electronico', 'Email']);
+        const email = emailCell ? emailCell.toString().trim().toLowerCase() : '';
+        const user = usersByEmail.get(email);
+
+        if (!email || !user?.oid) {
+          failedCount += 1;
+          console.warn(`Fila ${rowNumber}: no se encontró usuario en Entra para el email`, email || '(vacío)');
+          continue;
+        }
+
+        const proyecto = '';
+
+        const comentariosCell = getRowValueByHeaders(row, ['Principales funciones']);
+        const comentarios = comentariosCell
+          ? comentariosCell.toString()
+          : '';
+
+        const porcentaje = parsePercentage(getRowValueByHeaders(row, ['Porcentaje']));
+        const trayectoCompleto = getRowValueByHeaders(row, ['trayecto completo texto']);
+        const destino = getDestinoFromTrayecto(trayectoCompleto)
+          || getRowValueByHeaders(row, ['Destino', 'Pais'])?.toString();
+
+        const extraFields = {
+          pais: destino ? destino.toString() : undefined,
+          fechaInicio: parseExcelDate(getRowValueByHeaders(row, ['fecha salida', 'Fecha inicio'])),
+          fechaFin: parseExcelDate(getRowValueByHeaders(row, ['fecha fin del viaje', 'Fecha fin'])),
+          empresa: getRowValueByHeaders(row, ['Unidad organizativa', 'Empresa'])?.toString() || undefined,
+          horasCodigo: getRowValueByHeaders(row, ['Codigo de horas'])?.toString() || undefined,
+          porcentaje
+        };
+
+        try {
+          const created = await createSolicitud(user.oid, proyecto, comentarios, extraFields, {
+            nombre: user.nombre,
+            email: user.email
+          });
+          if (!created) {
+            failedCount += 1;
+            continue;
+          }
+
+          const estadoImportado = parseEstadoImport(getRowValueByHeaders(row, ['Estado']));
+          if (estadoImportado !== 'Pendiente') {
+            await updateSolicitudEstado(created.id, estadoImportado, porcentaje, { silent: true });
+          }
+
+          createdCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          console.error(`Error importando fila ${rowNumber}:`, error);
+        }
+      }
+
+      const title = createdCount === 1 ? 'Importacion completada' : 'Importacion no completada';
+      const text = failedCount > 0
+        ? `Se importaron ${createdCount} solicitudes. ${failedCount} fallaron.`
+        : `Se importaron ${createdCount} solicitudes correctamente.`;
+
+      Swal.fire({
+        icon: failedCount > 0 ? 'warning' : 'success',
+        title,
+        text,
+        confirmButtonColor: '#1e40af'
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo importar el Excel',
+        confirmButtonColor: '#1e40af'
+      });
+      console.error('Error importando Excel:', error);
+    } finally {
+      setIsImporting(false);
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
   const handleDeleteDocument = async (doc) => {
     const result = await Swal.fire({
       title: '¿Eliminar documento?',
@@ -562,12 +1185,57 @@ const AdminDashboard = () => {
     }
   };
 
-  if (loading) {
+  const handleDeleteSolicitud = async () => {
+    if (!selectedSolicitud) return;
+
+    const result = await Swal.fire({
+      title: '¿Eliminar viaje?'
+      ,text: 'Se eliminara la solicitud, sus documentos y mensajes de forma permanente'
+      ,icon: 'warning'
+      ,showCancelButton: true
+      ,confirmButtonColor: '#dc2626'
+      ,cancelButtonColor: '#6b7280'
+      ,confirmButtonText: 'Eliminar'
+      ,cancelButtonText: 'Cancelar'
+    });
+
+    if (result.isConfirmed) {
+      const deleted = await deleteSolicitud(selectedSolicitud.id);
+      if (deleted) {
+        closeDetailPanel();
+      }
+    }
+  };
+
+  if (showLoadingScreen) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Cargando datos...</p>
+      <div
+        className={`relative overflow-hidden min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center ${
+          isLoadingClosing ? 'animate-fade-out' : 'animate-fade-in'
+        }`}
+      >
+        <div className="loading-blob loading-blob-1" aria-hidden="true"></div>
+        <div className="loading-blob loading-blob-2" aria-hidden="true"></div>
+
+        <div className={`loading-center relative z-10 text-center ${isLoadingClosing ? 'animate-pop-out' : 'animate-pop-in'}`}>
+          <div className="loading-spinner-wrap">
+            <div className="loading-orbit"></div>
+            <div className="loading-orbit loading-orbit-2"></div>
+            <div className="loading-orbit loading-orbit-3"></div>
+            <div className="loading-core-dot" aria-hidden="true"></div>
+          </div>
+          <img
+            src="/images/logopll_positivo.svg"
+            alt="Perez-Llorca"
+            className="loading-brand"
+          />
+          <p className="text-gray-800 text-2xl sm:text-3xl font-semibold mt-5">Cargando información...</p>
+          <p className="text-gray-500 text-base mt-1">Estamos recuperando los datos del dashboard</p>
+          <div className="mt-4 flex items-center justify-center gap-2" aria-hidden="true">
+            <span className="loading-dot"></span>
+            <span className="loading-dot loading-dot-2"></span>
+            <span className="loading-dot loading-dot-3"></span>
+          </div>
         </div>
       </div>
     );
@@ -576,175 +1244,332 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
-      <header className="bg-primary text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
-            <div>
-              <h1 className="text-2xl font-bold">7P-PLL</h1>
-              <p className="text-blue-200 text-sm">Dashboard Administrativo</p>
+      <header className="bg-primary text-white shadow-lg fixed top-0 inset-x-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center h-7 sm:h-8 lg:h-9">
+              <img
+                src="/images/perez-llorca-homelogo.png"
+                alt="Perez-Llorca"
+                className="h-full w-auto max-w-[140px] sm:max-w-[170px] lg:max-w-[190px] object-contain"
+              />
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:space-x-4">
-              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-2 lg:hidden">
+              <button
+                type="button"
+                ref={mobileMessagesButtonRef}
+                onClick={toggleMessagesDropdown}
+                className="relative bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                title="Mensajes sin leer"
+                aria-label="Mensajes sin leer"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadMessages}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                ref={mobileDocsButtonRef}
+                onClick={toggleDocsDropdown}
+                className="relative bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                title="Documentos nuevos (24h)"
+                aria-label="Documentos nuevos"
+              >
+                <AlertCircle className="w-5 h-5" />
+                {newDocsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {newDocsCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                onClick={() => setIsMobileMenuOpen(prev => !prev)}
+                aria-label={isMobileMenuOpen ? 'Cerrar menu' : 'Abrir menu'}
+                aria-expanded={isMobileMenuOpen}
+              >
+                {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
+
+            {showMessagesDropdown && (
+              <div
+                ref={mobileMessagesDropdownRef}
+                className={`lg:hidden absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
+                  isMessagesDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
+                }`}
+              >
+                <div className="p-3 border-b border-gray-200 bg-gray-50">
+                  <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
+                </div>
+                {solicitudesWithUnreadMessages.length === 0 ? (
+                  <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
+                ) : (
+                  solicitudesWithUnreadMessages.map(sol => {
+                    const unreadCount = mensajes.filter(m => {
+                      return m.solicitudID === sol.id &&
+                        !m.leidoPorAdmin &&
+                        m.rol === 'user';
+                    }).length;
+                    return (
+                      <div
+                        key={sol.id}
+                        onClick={() => {
+                          setSelectedSolicitud(sol);
+                          setShowMessagesDropdown(false);
+                        }}
+                        className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 text-sm">{getProyectoDisplayName(sol.proyecto)}</p>
+                            <p className="text-xs text-gray-600 mt-1">{sol.usuarioNombre}</p>
+                          </div>
+                          <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
+                            {unreadCount}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {showDocsDropdown && (
+              <div
+                ref={mobileDocsDropdownRef}
+                className={`lg:hidden absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
+                  isDocsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
+                }`}
+              >
+                <div className="p-3 border-b border-gray-200 bg-gray-50">
+                  <h3 className="font-semibold text-gray-900">Documentos recientes ({newDocsCount})</h3>
+                </div>
+                {solicitudesWithNewDocs.length === 0 ? (
+                  <p className="text-gray-500 text-center py-6 text-sm">No hay documentos nuevos</p>
+                ) : (
+                  solicitudesWithNewDocs.map(sol => {
+                    const recentDocs = documentos.filter(d =>
+                      d.solicitudID === sol.id && !d.vistoPorAdmin
+                    );
+
+                    return (
+                      <div
+                        key={sol.id}
+                        onClick={() => {
+                          setSelectedSolicitud(sol);
+                          markDocsAsViewed(sol.id);
+                          setShowDocsDropdown(false);
+                        }}
+                        className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 text-sm">{getProyectoDisplayName(sol.proyecto)}</p>
+                            <p className="text-xs text-gray-600 mt-1">{sol.usuarioNombre}</p>
+                            <p className="text-xs text-gray-500 mt-1">{recentDocs.length} documento{recentDocs.length !== 1 ? 's' : ''} nuevo{recentDocs.length !== 1 ? 's' : ''}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+          <div
+            className={`flex flex-col gap-3 transition-all duration-300 ease-in-out overflow-hidden lg:flex-row lg:items-center lg:justify-end lg:space-x-4 lg:overflow-visible lg:transition-none lg:max-h-none lg:opacity-100 lg:translate-y-0 lg:pointer-events-auto ${
+              isMobileMenuOpen
+                ? 'max-h-96 opacity-100 translate-y-0'
+                : 'max-h-0 opacity-0 -translate-y-1 pointer-events-none'
+            }`}
+          >
+            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+              {!isViewRole && (
                 <button
                   onClick={() => setIsCreateModalOpen(true)}
-                  className="bg-white text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center"
+                  className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center"
                 >
                   <Plus className="w-5 h-5" />
                   <span>Nueva Solicitud</span>
                 </button>
+              )}
 
-                <button
-                  onClick={handleExportSolicitudes}
-                  className="bg-white text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center"
+              <button
+                onClick={handleExportSolicitudes}
+                className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center"
+              >
+                <FileDown className="w-5 h-5" />
+                <span>Exportar Excel</span>
+              </button>
+
+              {!isViewRole && (
+                <>
+                  <button
+                    onClick={() => importInputRef.current?.click()}
+                    disabled={isImporting}
+                    className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <Upload className="w-5 h-5" />
+                    <span>{isImporting ? 'Importando...' : 'Importar Excel'}</span>
+                  </button>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={handleImportExcel}
+                  />
+                </>
+              )}
+
+              {/* Badge de mensajes no leídos (solo escritorio) */}
+              <div className="relative hidden xl:block">
+                <button 
+                  ref={messagesButtonRef}
+                  onClick={toggleMessagesDropdown}
+                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors" 
+                  title="Mensajes sin leer"
                 >
-                  <FileDown className="w-5 h-5" />
-                  <span>Exportar Excel</span>
+                  <Bell className="w-5 h-5" />
                 </button>
-                
-                {/* Badge de mensajes no leídos (solo escritorio) */}
-                <div className="relative hidden xl:block">
-                  <button 
-                    ref={messagesButtonRef}
-                    onClick={toggleMessagesDropdown}
-                    className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors" 
-                    title="Mensajes sin leer"
-                  >
-                    <Bell className="w-5 h-5" />
-                  </button>
-                  {unreadMessages > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                      {unreadMessages}
-                    </span>
-                  )}
-                  
-                  {/* Dropdown de mensajes */}
-                  {showMessagesDropdown && (
-                    <div
-                      ref={messagesDropdownRef}
-                      className={`absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
-                        isMessagesDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
-                      }`}
-                    >
-                      <div className="p-3 border-b border-gray-200 bg-gray-50">
-                        <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
-                      </div>
-                      {solicitudesWithUnreadMessages.length === 0 ? (
-                        <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
-                      ) : (
-                        solicitudesWithUnreadMessages.map(sol => {
-                          const unreadCount = mensajes.filter(m => {
-                            return m.solicitudID === sol.id && 
-                              !m.leidoPorAdmin && 
-                              m.rol === 'user';
-                          }).length;
-                          return (
-                            <div
-                              key={sol.id}
-                              onClick={() => {
-                                setSelectedSolicitud(sol);
-                                setShowMessagesDropdown(false);
-                              }}
-                              className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                            >
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
-                                  <p className="text-xs text-gray-600 mt-1">{sol.usuarioNombre}</p>
-                                </div>
-                                <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
-                                  {unreadCount}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Badge de documentos nuevos (solo escritorio) */}
-                <div className="relative hidden xl:block">
-                  <button 
-                    ref={docsButtonRef}
-                    onClick={toggleDocsDropdown}
-                    className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors" 
-                    title="Documentos nuevos (24h)"
-                  >
-                    <AlertCircle className="w-5 h-5" />
-                  </button>
-                  {newDocsCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                      {newDocsCount}
-                    </span>
-                  )}
-                  
-                  {/* Dropdown de documentos */}
-                  {showDocsDropdown && (
-                    <div
-                      ref={docsDropdownRef}
-                      className={`absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
-                        isDocsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
-                      }`}
-                    >
-                      <div className="p-3 border-b border-gray-200 bg-gray-50">
-                        <h3 className="font-semibold text-gray-900">Documentos recientes ({newDocsCount})</h3>
-                      </div>
-                      {solicitudesWithNewDocs.length === 0 ? (
-                        <p className="text-gray-500 text-center py-6 text-sm">No hay documentos nuevos</p>
-                      ) : (
-                        solicitudesWithNewDocs.map(sol => {
-                          const recentDocs = documentos.filter(d => 
-                            d.solicitudID === sol.id && !d.vistoPorAdmin
-                          );
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadMessages}
+                  </span>
+                )}
 
-                          return (
-                            <div
-                              key={sol.id}
-                              onClick={() => {
-                                setSelectedSolicitud(sol);
-                                markDocsAsViewed(sol.id);
-                                setShowDocsDropdown(false);
-                              }}
-                              className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                            >
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
-                                  <p className="text-xs text-gray-600 mt-1">{sol.usuarioNombre}</p>
-                                  <p className="text-xs text-gray-500 mt-1">{recentDocs.length} documento{recentDocs.length !== 1 ? 's' : ''} nuevo{recentDocs.length !== 1 ? 's' : ''}</p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
+                {/* Dropdown de mensajes */}
+                {showMessagesDropdown && (
+                  <div
+                    ref={messagesDropdownRef}
+                    className={`absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
+                      isMessagesDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
+                    }`}
+                  >
+                    <div className="p-3 border-b border-gray-200 bg-gray-50">
+                      <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
                     </div>
-                  )}
-                </div>
+                    {solicitudesWithUnreadMessages.length === 0 ? (
+                      <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
+                    ) : (
+                      solicitudesWithUnreadMessages.map(sol => {
+                        const unreadCount = mensajes.filter(m => {
+                          return m.solicitudID === sol.id && 
+                            !m.leidoPorAdmin && 
+                            m.rol === 'user';
+                        }).length;
+                        return (
+                          <div
+                            key={sol.id}
+                            onClick={() => {
+                              setSelectedSolicitud(sol);
+                              setShowMessagesDropdown(false);
+                            }}
+                            className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900 text-sm">{getProyectoDisplayName(sol.proyecto)}</p>
+                                <p className="text-xs text-gray-600 mt-1">{sol.usuarioNombre}</p>
+                              </div>
+                              <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
+                                {unreadCount}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div className="flex items-center justify-between gap-3 sm:justify-start w-full sm:w-auto">
-                <div className="text-left sm:text-right min-w-0">
-                  <p className="font-semibold">{user.name}</p>
-                  <p className="text-blue-200 text-sm break-all sm:break-normal max-w-[70vw] sm:max-w-none">
-                    {user.email}
-                  </p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                  title="Cerrar sesión"
+              {/* Badge de documentos nuevos (solo escritorio) */}
+              <div className="relative hidden xl:block">
+                <button 
+                  ref={docsButtonRef}
+                  onClick={toggleDocsDropdown}
+                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors" 
+                  title="Documentos nuevos (24h)"
                 >
-                  <LogOut className="w-5 h-5" />
+                  <AlertCircle className="w-5 h-5" />
                 </button>
+                {newDocsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {newDocsCount}
+                  </span>
+                )}
+
+                {/* Dropdown de documentos */}
+                {showDocsDropdown && (
+                  <div
+                    ref={docsDropdownRef}
+                    className={`absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
+                      isDocsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
+                    }`}
+                  >
+                    <div className="p-3 border-b border-gray-200 bg-gray-50">
+                      <h3 className="font-semibold text-gray-900">Documentos recientes ({newDocsCount})</h3>
+                    </div>
+                    {solicitudesWithNewDocs.length === 0 ? (
+                      <p className="text-gray-500 text-center py-6 text-sm">No hay documentos nuevos</p>
+                    ) : (
+                      solicitudesWithNewDocs.map(sol => {
+                        const recentDocs = documentos.filter(d => 
+                          d.solicitudID === sol.id && !d.vistoPorAdmin
+                        );
+
+                        return (
+                          <div
+                            key={sol.id}
+                            onClick={() => {
+                              setSelectedSolicitud(sol);
+                              markDocsAsViewed(sol.id);
+                              setShowDocsDropdown(false);
+                            }}
+                            className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900 text-sm">{getProyectoDisplayName(sol.proyecto)}</p>
+                                <p className="text-xs text-gray-600 mt-1">{sol.usuarioNombre}</p>
+                                <p className="text-xs text-gray-500 mt-1">{recentDocs.length} documento{recentDocs.length !== 1 ? 's' : ''} nuevo{recentDocs.length !== 1 ? 's' : ''}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
               </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 sm:justify-start w-full lg:w-auto">
+              <div className="text-left sm:text-right min-w-0">
+                <p className="font-semibold break-all sm:break-normal max-w-[70vw] sm:max-w-none">
+                  {user.email}
+                </p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-6 sm:pt-28 sm:pb-8 lg:pt-24">
         {/* Estadísticas */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 sm:gap-6 mb-6 sm:mb-8">
           <button
@@ -786,10 +1611,10 @@ const AdminDashboard = () => {
               setCurrentPage(1);
             }}
             className={`relative overflow-hidden rounded-xl shadow-md p-4 sm:p-6 text-left transition-colors hover:shadow-lg ${estadoFiltroStyles['En revisión'].hover} ${filterEstado === 'En revisión' ? estadoFiltroStyles['En revisión'].selected : 'bg-white'}`}
-            aria-label="Filtrar solicitudes en revisión"
+            aria-label="Filtrar Solicitudes En Revisión"
           >
             <div className="relative z-10">
-              <p className="text-gray-600 text-xs sm:text-sm">En revisión</p>
+              <p className="text-gray-600 text-xs sm:text-sm">Solicitudes En Revisión</p>
               <p className="text-2xl sm:text-3xl font-bold text-blue-600">{stats.enProceso}</p>
             </div>
             <Clock className="absolute -right-5 -bottom-5 w-20 h-20 sm:w-24 sm:h-24 text-blue-600 opacity-15" />
@@ -835,7 +1660,7 @@ const AdminDashboard = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar por empleado o pais..."
+                placeholder="Buscar por empleado o destino..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
@@ -865,11 +1690,14 @@ const AdminDashboard = () => {
                   <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Proyecto
                   </th>
-                  <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
-                    Documentos
+                  <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">
+                    Destino
                   </th>
                   <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">
                     Fechas
+                  </th>
+                  <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
+                    Documentos
                   </th>
                   <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Estado
@@ -900,22 +1728,24 @@ const AdminDashboard = () => {
                           <div className="font-medium text-gray-900">
                             {getUserName(solicitud.usuarioID)}
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {solicitud.cargo || '-'}
-                          </div>
                         </td>
                         <td className="px-4 lg:px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900">{solicitud.proyecto}</div>
-                          <div className="text-sm text-gray-500 truncate max-w-xs">
+                          <div className="text-sm font-medium text-gray-900 truncate max-w-[12rem]">
+                            {getProyectoDisplayName(solicitud.proyecto)}
+                          </div>
+                          <div className="text-sm text-gray-500 truncate max-w-[12rem]">
                             {solicitud.comentarios?.trim() ? solicitud.comentarios : 'Sin descripcion'}
                           </div>
                         </td>
-                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden lg:table-cell whitespace-nowrap">
-                          {numDocs} documento{numDocs !== 1 ? 's' : ''}
+                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden md:table-cell whitespace-nowrap">
+                          {solicitud.pais?.trim() ? solicitud.pais : 'Sin destino'}
                         </td>
                         <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 whitespace-nowrap hidden md:table-cell">
                           <div>Inicio: {solicitud.fechaInicio ? formatDate(solicitud.fechaInicio) : 'Sin fecha'}</div>
                           <div>Fin: {solicitud.fechaFin ? formatDate(solicitud.fechaFin) : 'Sin fecha'}</div>
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden lg:table-cell whitespace-nowrap">
+                          {numDocs} documento{numDocs !== 1 ? 's' : ''}
                         </td>
                         <td className="px-4 lg:px-6 py-4">
                           {renderEstadoSelector(solicitud)}
@@ -952,7 +1782,9 @@ const AdminDashboard = () => {
                     <div className="min-w-0">
                       <p className="text-[11px] uppercase tracking-wider text-gray-400">Usuario</p>
                       <p className="text-sm font-semibold text-gray-900 truncate">{getUserName(solicitud.usuarioID)}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{solicitud.cargo || '-'}</p>
+                      {solicitud.cargo?.trim() && (
+                        <p className="text-xs text-gray-500 mt-0.5">{solicitud.cargo}</p>
+                      )}
                     </div>
                     {renderEstadoSelector(solicitud)}
                   </div>
@@ -960,7 +1792,7 @@ const AdminDashboard = () => {
                   <div className="mt-3">
                     <p className="text-[11px] uppercase tracking-wider text-gray-400">Proyecto</p>
                     <p className="text-sm font-semibold text-gray-900">
-                      {solicitud.proyecto}
+                      {getProyectoDisplayName(solicitud.proyecto)}
                     </p>
                     <p className="text-xs text-gray-600 mt-1 line-clamp-2">
                       {solicitud.comentarios?.trim() ? solicitud.comentarios : 'Sin descripcion'}
@@ -971,6 +1803,10 @@ const AdminDashboard = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] uppercase tracking-wider text-gray-400">Documentos</span>
                       <span className="font-semibold text-gray-800">{numDocs}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] uppercase tracking-wider text-gray-400">Destino</span>
+                      <span className="font-semibold text-gray-800">{solicitud.pais?.trim() ? solicitud.pais : 'Sin destino'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] uppercase tracking-wider text-gray-400">Fecha de inicio</span>
@@ -1087,7 +1923,7 @@ const AdminDashboard = () => {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:space-x-2">
-                      <h3 className="text-xl sm:text-2xl font-bold">{selectedSolicitud.proyecto}</h3>
+                      <h3 className="text-xl sm:text-2xl font-bold">{getProyectoDisplayName(selectedSolicitud.proyecto)}</h3>
                       <button
                         onClick={handleEditTitulo}
                         className="hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors self-start sm:self-auto"
@@ -1096,6 +1932,24 @@ const AdminDashboard = () => {
                         <Edit2 className="w-5 h-5" />
                       </button>
                     </div>
+                  )}
+                  {!isViewRole && (
+                    <button
+                      type="button"
+                      onClick={handleDownloadSolicitudPackage}
+                      disabled={isDownloadingSolicitud}
+                      className="sm:hidden mt-2 bg-white text-primary hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold inline-flex items-center justify-center gap-2 w-full"
+                      title="Descargar solicitud completa"
+                    >
+                      {isDownloadingSolicitud ? (
+                        <>
+                          <span className="inline-block w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
+                          Descargando...
+                        </>
+                      ) : (
+                        'Descargar información'
+                      )}
+                    </button>
                   )}
                   <p className="text-blue-200 text-sm">Usuario: {getUserName(selectedSolicitud.usuarioID)}</p>
                   <div className="flex flex-col gap-2 text-blue-100 text-sm mt-2">
@@ -1112,11 +1966,11 @@ const AdminDashboard = () => {
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="flex items-center">
                         <MapPin className="w-4 h-4 mr-1" />
-                        Pais: {selectedSolicitud.pais?.trim() ? selectedSolicitud.pais : 'Sin dato'}
+                        Destino: {selectedSolicitud.pais?.trim() ? selectedSolicitud.pais : 'Sin destino'}
                       </span>
                       <span className="flex items-center">
                         <Building2 className="w-4 h-4 mr-1" />
-                        Empresa: {selectedSolicitud.filial?.trim() ? selectedSolicitud.filial : 'Sin dato'}
+                        Empresa: {selectedSolicitud.empresa?.trim() ? selectedSolicitud.empresa : selectedSolicitud.filial?.trim() ? selectedSolicitud.filial : 'Sin dato'}
                       </span>
                       <span className="flex items-center">
                         <Percent className="w-4 h-4 mr-1" />
@@ -1136,6 +1990,24 @@ const AdminDashboard = () => {
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
+                {!isViewRole && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadSolicitudPackage}
+                    disabled={isDownloadingSolicitud}
+                    className="hidden sm:inline-flex absolute top-4 right-16 bg-white text-primary hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold items-center gap-2"
+                    title="Descargar solicitud completa"
+                  >
+                    {isDownloadingSolicitud ? (
+                      <>
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
+                        Descargando...
+                      </>
+                    ) : (
+                      'Descargar información'
+                    )}
+                  </button>
+                )}
               </div>
 
               <div className="p-4 sm:p-6 space-y-6">
@@ -1174,14 +2046,16 @@ const AdminDashboard = () => {
                                 >
                                   <Download className="w-4 h-4" />
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteDocument(doc)}
-                                  className="flex-shrink-0 text-red-600 hover:text-red-700 p-1 rounded transition-colors"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                {!isViewRole && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteDocument(doc)}
+                                    className="flex-shrink-0 text-red-600 hover:text-red-700 p-1 rounded transition-colors"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))
@@ -1215,14 +2089,16 @@ const AdminDashboard = () => {
                                 >
                                   <Download className="w-4 h-4" />
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteDocument(doc)}
-                                  className="flex-shrink-0 text-red-600 hover:text-red-700 p-1 rounded transition-colors"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                {!isViewRole && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteDocument(doc)}
+                                    className="flex-shrink-0 text-red-600 hover:text-red-700 p-1 rounded transition-colors"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))
@@ -1256,14 +2132,16 @@ const AdminDashboard = () => {
                                 >
                                   <Download className="w-4 h-4" />
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteDocument(doc)}
-                                  className="flex-shrink-0 text-red-600 hover:text-red-700 p-1 rounded transition-colors"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                {!isViewRole && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteDocument(doc)}
+                                    className="flex-shrink-0 text-red-600 hover:text-red-700 p-1 rounded transition-colors"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))
@@ -1321,12 +2199,13 @@ const AdminDashboard = () => {
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                      placeholder="Escribe un mensaje..."
-                      className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                      placeholder={isViewRole ? 'Debes ser administrador para poder enviar mensajes' : 'Escribe un mensaje...'}
+                      disabled={isViewRole}
+                      className="flex-1 px-4 py-2 text-xs sm:text-base border border-gray-200 rounded-lg focus:outline-none focus:border-primary disabled:bg-gray-100 disabled:text-gray-500"
                     />
                     <button
                       onClick={handleSendMessage}
-                      disabled={!newMessage.trim()}
+                      disabled={!newMessage.trim() || isViewRole}
                       className={`bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed ${
                         isSendBouncing ? 'animate-bounce-once' : ''
                       }`}
@@ -1335,6 +2214,18 @@ const AdminDashboard = () => {
                     </button>
                   </div>
                 </div>
+
+                {!isViewRole && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={handleDeleteSolicitud}
+                      className="w-4/5 mx-auto block bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Eliminar viaje
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1346,6 +2237,8 @@ const AdminDashboard = () => {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={handleCreateSolicitud}
+        availableUsers={availableUsers}
+        loadingUsers={isLoadingAvailableUsers}
       />
     </div>
   );

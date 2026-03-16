@@ -98,3 +98,136 @@
 .smooth-scroll {
   scroll-behavior: smooth;
 }
+
+@keyframes loaderSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loaderDrift {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes loadingDot {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.35;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.loading-orbit {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px dashed rgba(30, 64, 175, 0.35);
+  animation: loaderSpin 2.2s linear infinite;
+}
+
+.loading-orbit-2 {
+  inset: 10%;
+  border-style: solid;
+  border-color: rgba(30, 64, 175, 0.18);
+  animation-duration: 2.8s;
+  animation-direction: reverse;
+}
+
+.loading-orbit-3 {
+  inset: 20%;
+  border-style: dashed;
+  border-color: rgba(30, 64, 175, 0.28);
+  animation-duration: 3.4s;
+}
+
+.loading-blob {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 9999px;
+  filter: blur(36px);
+  opacity: 0.45;
+  animation: loaderDrift 4s ease-in-out infinite;
+}
+
+.loading-blob-1 {
+  top: 16%;
+  left: 12%;
+  background: rgba(59, 130, 246, 0.26);
+}
+
+.loading-blob-2 {
+  right: 10%;
+  bottom: 14%;
+  background: rgba(30, 64, 175, 0.24);
+  animation-delay: 0.7s;
+}
+
+.loading-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: rgb(30, 64, 175);
+  animation: loadingDot 1.2s infinite ease-in-out;
+}
+
+.loading-dot-2 {
+  animation-delay: 0.15s;
+}
+
+.loading-dot-3 {
+  animation-delay: 0.3s;
+}
+
+.loading-center {
+  width: min(92vw, 560px);
+  padding: 0 1rem;
+}
+
+.loading-spinner-wrap {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  margin: 0 auto 1.25rem;
+}
+
+.loading-core-dot {
+  position: absolute;
+  inset: 34%;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 30% 30%, rgba(59, 130, 246, 0.85), rgba(30, 64, 175, 0.95));
+  box-shadow: 0 0 0 8px rgba(30, 64, 175, 0.12), 0 10px 25px rgba(30, 64, 175, 0.25);
+}
+
+.loading-brand {
+  width: min(72vw, 290px);
+  height: auto;
+  object-fit: contain;
+  margin: 0 auto;
+}
+
+@media (min-width: 640px) {
+  .loading-spinner-wrap {
+    width: 144px;
+    height: 144px;
+    margin-bottom: 1.5rem;
+  }
+
+  .loading-brand {
+    width: min(52vw, 340px);
+  }
+}

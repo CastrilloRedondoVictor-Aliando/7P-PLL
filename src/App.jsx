@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
 import { useAuth } from './hooks/useAuth';
+import { hasApiScope } from './config/msalConfig';
 import LoginPage from './pages/LoginPage';
 import UserPortal from './pages/UserPortal';
 import AdminDashboard from './pages/AdminDashboard';
@@ -11,20 +12,25 @@ function App() {
   const { instance } = useMsal();
   const isAuthenticated = useIsAuthenticated();
   const [isProcessingCallback, setIsProcessingCallback] = useState(true);
+  const isAppLoading = isProcessingCallback || isInitializing;
+  const [showLoadingScreen, setShowLoadingScreen] = useState(isAppLoading);
+  const [isLoadingClosing, setIsLoadingClosing] = useState(false);
 
   // Manejar el callback de MSAL después de login redirect (solo una vez)
   useEffect(() => {
     const handleRedirect = async () => {
       try {
         const response = await instance.handleRedirectPromise();
-        
-        if (response && response.accessToken) {
+        const redirectToken = hasApiScope ? response?.accessToken : response?.idToken;
+
+        if (response && redirectToken) {
           console.log('✅ Login exitoso, response:', response);
           // Hubo un login exitoso, sincronizar con backend usando el token del response
-          const success = await handleLoginSuccess(response.accessToken);
+          const success = await handleLoginSuccess(redirectToken);
           console.log('Resultado sincronización:', success);
-          
-          // No hacer logout automático, dejar que el usuario vea el error
+        } else if (response) {
+          const success = await handleLoginSuccess();
+          console.log('Resultado sincronización (silent):', success);
         }
       } catch (error) {
         console.error('❌ Error manejando redirect:', error);
@@ -36,13 +42,68 @@ function App() {
     handleRedirect();
   }, []); // Sin dependencias - solo ejecutar una vez
 
+  useEffect(() => {
+    const syncIfNeeded = async () => {
+      if (!isAuthenticated || isProcessingCallback) return;
+      if (user && user.entraIdOID) return;
+      try {
+        await handleLoginSuccess();
+      } catch (error) {
+        console.error('❌ Error sincronizando usuario en inicio:', error);
+      }
+    };
+
+    syncIfNeeded();
+  }, [isAuthenticated, isProcessingCallback, user, handleLoginSuccess]);
+
+  useEffect(() => {
+    if (isAppLoading) {
+      setShowLoadingScreen(true);
+      setIsLoadingClosing(false);
+      return;
+    }
+
+    if (!showLoadingScreen) return;
+
+    setIsLoadingClosing(true);
+    const timeoutId = setTimeout(() => {
+      setShowLoadingScreen(false);
+      setIsLoadingClosing(false);
+    }, 180);
+
+    return () => clearTimeout(timeoutId);
+  }, [isAppLoading, showLoadingScreen]);
+
   // Mostrar loading mientras se procesa el callback o se inicializa
-  if (isProcessingCallback || isInitializing) {
+  if (showLoadingScreen) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-          <p className="text-gray-700 font-medium">Cargando...</p>
+      <div
+        className={`relative overflow-hidden min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 ${
+          isLoadingClosing ? 'animate-fade-out' : 'animate-fade-in'
+        }`}
+      >
+        <div className="loading-blob loading-blob-1" aria-hidden="true"></div>
+        <div className="loading-blob loading-blob-2" aria-hidden="true"></div>
+
+        <div className={`loading-center relative z-10 text-center ${isLoadingClosing ? 'animate-pop-out' : 'animate-pop-in'}`}>
+          <div className="loading-spinner-wrap">
+            <div className="loading-orbit"></div>
+            <div className="loading-orbit loading-orbit-2"></div>
+            <div className="loading-orbit loading-orbit-3"></div>
+            <div className="loading-core-dot" aria-hidden="true"></div>
+          </div>
+          <img
+            src="/images/logopll_positivo.svg"
+            alt="Perez-Llorca"
+            className="loading-brand"
+          />
+          <p className="text-gray-800 text-2xl sm:text-3xl font-semibold mt-5">Cargando información...</p>
+          <p className="text-gray-500 text-base mt-1">Estamos preparando tu panel</p>
+          <div className="mt-4 flex items-center justify-center gap-2" aria-hidden="true">
+            <span className="loading-dot"></span>
+            <span className="loading-dot loading-dot-2"></span>
+            <span className="loading-dot loading-dot-3"></span>
+          </div>
         </div>
       </div>
     );
@@ -53,8 +114,8 @@ function App() {
     return <LoginPage />;
   }
 
-  // Si es admin, mostrar dashboard administrativo
-  if (user.rol === 'admin') {
+  // Si es admin o view, mostrar dashboard administrativo
+  if (user.rol === 'admin' || user.rol === 'view') {
     return <AdminDashboard />;
   }
 

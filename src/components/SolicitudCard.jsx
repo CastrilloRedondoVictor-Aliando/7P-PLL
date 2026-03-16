@@ -1,10 +1,11 @@
-import { Calendar, FileText } from 'lucide-react';
+import React from 'react';
+import { Calendar } from 'lucide-react';
 import { formatDateShort, getEstadoColor } from '../utils/helpers';
 
 const SolicitudCard = ({ solicitud, isSelected, onClick }) => {
   const estadoColors = getEstadoColor(solicitud.estado);
   const travelTitle = () => {
-    const pais = solicitud.pais?.trim() ? solicitud.pais.toUpperCase() : 'SIN PAIS';
+    const pais = solicitud.pais?.trim() ? solicitud.pais.toUpperCase() : 'SIN DESTINO';
     if (!solicitud.fechaInicio) {
       return `${pais} - SIN FECHA`;
     }
@@ -29,10 +30,6 @@ const SolicitudCard = ({ solicitud, isSelected, onClick }) => {
           {solicitud.estado}
         </span>
       </div>
-      
-      <p className="text-sm text-gray-600 line-clamp-2 mb-3">
-        {solicitud.comentarios?.trim() ? solicitud.comentarios : 'Sin descripcion'}
-      </p>
       
       <div className="flex flex-wrap items-center text-xs text-gray-500 gap-3">
         <div className="flex items-center">

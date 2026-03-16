@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { LogOut, Search, Bell, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { LogOut, Search, Bell, X, Menu, Wrench, Info } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../config/api';
@@ -11,14 +11,18 @@ const UserPortal = () => {
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
+  const [filterFecha, setFilterFecha] = useState('');
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [isNotificationsDropdownClosing, setIsNotificationsDropdownClosing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDetailClosing, setIsDetailClosing] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const notificationsButtonRef = useRef(null);
+  const mobileNotificationsButtonRef = useRef(null);
   const notificationsDropdownRef = useRef(null);
+  const mobileNotificationsDropdownRef = useRef(null);
   const joinedGroupsRef = useRef(new Set());
   const itemsPerPage = 10;
 
@@ -42,9 +46,18 @@ const UserPortal = () => {
   // Aplicar búsqueda y filtros
   const filteredSolicitudes = userSolicitudes.filter(s => {
     const matchesSearch = s.proyecto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         s.comentarios.toLowerCase().includes(searchTerm.toLowerCase());
+                         s.comentarios?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterEstado === 'Todos' || s.estado === filterEstado;
-    return matchesSearch && matchesFilter;
+    const targetDate = filterFecha ? new Date(filterFecha) : null;
+    if (targetDate) {
+      targetDate.setHours(0, 0, 0, 0);
+    }
+    const startDate = s.fechaInicio ? new Date(s.fechaInicio) : null;
+    const endDate = s.fechaFin ? new Date(s.fechaFin) : null;
+    if (startDate) startDate.setHours(0, 0, 0, 0);
+    if (endDate) endDate.setHours(0, 0, 0, 0);
+    const matchesDate = !targetDate || (startDate && endDate && startDate <= targetDate && endDate >= targetDate);
+    return matchesSearch && matchesFilter && matchesDate;
   }).sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
 
   const totalPages = Math.max(1, Math.ceil(filteredSolicitudes.length / itemsPerPage));
@@ -135,7 +148,7 @@ const UserPortal = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterEstado, userSolicitudes.length]);
+  }, [searchTerm, filterEstado, filterFecha, userSolicitudes.length]);
 
   useEffect(() => {
     if (!showNotificationsDropdown) return;
@@ -143,7 +156,9 @@ const UserPortal = () => {
     const handleOutsideClick = (event) => {
       const target = event.target;
       const isInside = notificationsDropdownRef.current?.contains(target) ||
-        notificationsButtonRef.current?.contains(target);
+        mobileNotificationsDropdownRef.current?.contains(target) ||
+        notificationsButtonRef.current?.contains(target) ||
+        mobileNotificationsButtonRef.current?.contains(target);
       if (!isInside) {
         closeNotificationsDropdown();
       }
@@ -231,104 +246,289 @@ const UserPortal = () => {
     }
   };
 
+  const handleIncidenciasClick = () => {
+    Swal.fire({
+      title: 'Incidencias',
+      text: 'Contacta con soporte en support@perezllorca.com',
+      icon: 'info',
+      confirmButtonText: 'Cerrar'
+    });
+  };
+
+  const handleGuiaUsoClick = async () => {
+    try {
+      const token = await getAccessToken();
+      const { url: guiaUsoAbsoluteUrl } = await apiRequest('/documentos/guia-uso/preview', {
+        token
+      });
+
+      const officePreviewUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(guiaUsoAbsoluteUrl)}&zoom=50`;
+      const isMobileView = window.matchMedia('(max-width: 1023px)').matches;
+
+      if (isMobileView) {
+        const mobileResult = await Swal.fire({
+          title: 'Guia de uso',
+          text: 'En movil la guia se abre en una nueva pestaña para poder usar los controles.',
+          showCancelButton: true,
+          showDenyButton: true,
+          confirmButtonText: 'Abrir guia',
+          denyButtonText: 'Descargar',
+          cancelButtonText: 'Cerrar',
+          confirmButtonColor: '#1e40af'
+        });
+
+        if (mobileResult.isConfirmed) {
+          window.open(officePreviewUrl, '_blank', 'noopener');
+        } else if (mobileResult.isDenied) {
+          window.open(guiaUsoAbsoluteUrl, '_blank', 'noopener');
+        }
+        return;
+      }
+
+      const result = await Swal.fire({
+        title: 'Guia de uso',
+        html: `
+          <div style="width:100%;height:60vh;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
+            <iframe src="${officePreviewUrl}" title="Guia de uso" style="width:100%;height:100%;border:0;"></iframe>
+          </div>
+          <p style="margin-top:10px;font-size:14px;color:#6b7280;">Si no puedes ver la guia, usa el boton Descargar.</p>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Descargar',
+        cancelButtonText: 'Cerrar',
+        confirmButtonColor: '#1e40af',
+        width: 900
+      });
+
+      if (result.isConfirmed) {
+        window.open(guiaUsoAbsoluteUrl, '_blank', 'noopener');
+      }
+    } catch (error) {
+      console.error('Error cargando guia de uso:', error);
+      Swal.fire({
+        title: 'No se pudo abrir la guia',
+        text: 'Intentalo de nuevo en unos segundos.',
+        icon: 'error',
+        confirmButtonText: 'Cerrar',
+        confirmButtonColor: '#1e40af'
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
-      <header className="bg-primary text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
-            <div>
-              <h1 className="text-2xl font-bold">7P-PLL</h1>
-              <p className="text-blue-200 text-sm">Portal de Usuario</p>
+      <header className="bg-primary text-white shadow-lg fixed top-0 inset-x-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center h-7 sm:h-8 lg:h-9">
+              <img
+                src="/images/perez-llorca-homelogo.png"
+                alt="Perez-Llorca"
+                className="h-full w-auto max-w-[140px] sm:max-w-[170px] lg:max-w-[190px] object-contain"
+              />
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:space-x-4">
-              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                {/* Badge de mensajes no leídos (solo escritorio) */}
-                <div className="relative hidden xl:block">
-                  <button 
-                    ref={notificationsButtonRef}
-                    onClick={toggleNotificationsDropdown}
-                    className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                    title="Mensajes sin leer"
-                  >
-                    <Bell className="w-5 h-5" />
-                  </button>
-                  {unreadMessages > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                      {unreadMessages}
-                    </span>
-                  )}
-                  
-                  {/* Dropdown de notificaciones */}
-                  {showNotificationsDropdown && (
-                    <div
-                      ref={notificationsDropdownRef}
-                      className={`absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
-                        isNotificationsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
-                      }`}
-                    >
-                      <div className="p-3 border-b border-gray-200 bg-gray-50">
-                        <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
-                      </div>
-                      {solicitudesWithUnreadMessages.length === 0 ? (
-                        <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
-                      ) : (
-                        solicitudesWithUnreadMessages.map(sol => {
-                          const unreadCount = mensajes.filter(m => 
-                            m.solicitudID === sol.id && !m.leidoPorUser && m.rol === 'admin'
-                          ).length;
-                          return (
-                            <div
-                              key={sol.id}
-                              onClick={() => {
-                                setSelectedSolicitud(sol);
-                                setShowNotificationsDropdown(false);
-                              }}
-                              className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                            >
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
-                                  <p className="text-xs text-gray-600 mt-1">Estado: {sol.estado}</p>
-                                </div>
-                                <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
-                                  {unreadCount}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
+            <div className="flex items-center gap-2 lg:hidden">
+              <button
+                type="button"
+                ref={mobileNotificationsButtonRef}
+                onClick={toggleNotificationsDropdown}
+                className="relative bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                title="Mensajes sin leer"
+                aria-label="Mensajes sin leer"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadMessages}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleGuiaUsoClick}
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                title="Guia de uso"
+                aria-label="Guia de uso"
+              >
+                <Info className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleIncidenciasClick}
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                title="Incidencias"
+                aria-label="Incidencias"
+              >
+                <Wrench className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                onClick={() => setIsMobileMenuOpen(prev => !prev)}
+                aria-label={isMobileMenuOpen ? 'Cerrar menu' : 'Abrir menu'}
+                aria-expanded={isMobileMenuOpen}
+              >
+                {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
+
+            {showNotificationsDropdown && isMobile && (
+              <div
+                ref={mobileNotificationsDropdownRef}
+                className={`lg:hidden absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
+                  isNotificationsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
+                }`}
+              >
+                <div className="p-3 border-b border-gray-200 bg-gray-50">
+                  <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
                 </div>
+                {solicitudesWithUnreadMessages.length === 0 ? (
+                  <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
+                ) : (
+                  solicitudesWithUnreadMessages.map(sol => {
+                    const unreadCount = mensajes.filter(m =>
+                      m.solicitudID === sol.id && !m.leidoPorUser && m.rol === 'admin'
+                    ).length;
+                    return (
+                      <div
+                        key={sol.id}
+                        onClick={() => {
+                          setSelectedSolicitud(sol);
+                          setShowNotificationsDropdown(false);
+                        }}
+                        className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
+                            <p className="text-xs text-gray-600 mt-1">Estado: {sol.estado}</p>
+                          </div>
+                          <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
+                            {unreadCount}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+          <div
+            className={`flex flex-col gap-3 transition-all duration-300 ease-in-out overflow-hidden lg:flex-row lg:items-center lg:justify-end lg:space-x-4 lg:overflow-visible lg:transition-none lg:max-h-none lg:opacity-100 lg:translate-y-0 lg:pointer-events-auto ${
+              isMobileMenuOpen
+                ? 'max-h-96 opacity-100 translate-y-0'
+                : 'max-h-0 opacity-0 -translate-y-1 pointer-events-none'
+            }`}
+          >
+            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+              {/* Badge de mensajes no leídos (solo escritorio) */}
+              <div className="relative hidden xl:block">
+                <button 
+                  ref={notificationsButtonRef}
+                  onClick={toggleNotificationsDropdown}
+                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                  title="Mensajes sin leer"
+                >
+                  <Bell className="w-5 h-5" />
+                </button>
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadMessages}
+                  </span>
+                )}
+
+                {/* Dropdown de notificaciones */}
+                {showNotificationsDropdown && !isMobile && (
+                  <div
+                    ref={notificationsDropdownRef}
+                    className={`absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
+                      isNotificationsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
+                    }`}
+                  >
+                    <div className="p-3 border-b border-gray-200 bg-gray-50">
+                      <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
+                    </div>
+                    {solicitudesWithUnreadMessages.length === 0 ? (
+                      <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
+                    ) : (
+                      solicitudesWithUnreadMessages.map(sol => {
+                        const unreadCount = mensajes.filter(m => 
+                          m.solicitudID === sol.id && !m.leidoPorUser && m.rol === 'admin'
+                        ).length;
+                        return (
+                          <div
+                            key={sol.id}
+                            onClick={() => {
+                              setSelectedSolicitud(sol);
+                              setShowNotificationsDropdown(false);
+                            }}
+                            className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
+                                <p className="text-xs text-gray-600 mt-1">Estado: {sol.estado}</p>
+                              </div>
+                              <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
+                                {unreadCount}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div className="flex items-center justify-between gap-3 sm:justify-start w-full sm:w-auto">
-                <div className="text-left sm:text-right min-w-0">
-                  <p className="font-semibold">{user.name}</p>
-                  <p className="text-blue-200 text-sm break-all sm:break-normal max-w-[70vw] sm:max-w-none">
-                    {user.email}
-                  </p>
-                </div>
+              <div className="relative hidden xl:block">
                 <button
-                  onClick={handleLogout}
+                  type="button"
+                  onClick={handleGuiaUsoClick}
                   className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                  title="Cerrar sesión"
+                  title="Guia de uso"
                 >
-                  <LogOut className="w-5 h-5" />
+                  <Info className="w-5 h-5" />
                 </button>
               </div>
+
+              <div className="relative hidden xl:block">
+                <button
+                  type="button"
+                  onClick={handleIncidenciasClick}
+                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                  title="Incidencias"
+                >
+                  <Wrench className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 sm:justify-start w-full lg:w-auto">
+              <div className="text-left sm:text-right min-w-0">
+                <p className="font-semibold break-all sm:break-normal max-w-[70vw] sm:max-w-none">
+                  {user.email}
+                </p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-6 sm:pt-28 sm:pb-8 lg:pt-24">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Panel de Solicitudes */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+          <div className="lg:col-span-1 lg:sticky lg:top-24 lg:self-start">
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-8.5rem)] lg:h-[calc(100vh-9rem)] flex flex-col">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Mis Solicitudes</h2>
               
               {/* Búsqueda */}
@@ -342,6 +542,13 @@ const UserPortal = () => {
                   className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
                 />
               </div>
+
+              <input
+                type="date"
+                value={filterFecha}
+                onChange={(e) => setFilterFecha(e.target.value)}
+                className="w-full mb-4 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+              />
 
               {/* Filtro de Estado */}
               <select
@@ -357,19 +564,21 @@ const UserPortal = () => {
               </select>
 
               {/* Lista de Solicitudes */}
-              <div className="space-y-3 animate-fade-in-up" key={`user-page-${currentPage}`}>
-                {filteredSolicitudes.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No hay solicitudes</p>
-                ) : (
-                  pagedSolicitudes.map(solicitud => (
-                    <SolicitudCard
-                      key={solicitud.id}
-                      solicitud={solicitud}
-                      isSelected={selectedSolicitud?.id === solicitud.id}
-                      onClick={() => handleSelectSolicitud(solicitud)}
-                    />
-                  ))
-                )}
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <div className="space-y-3 animate-fade-in-up" key={`user-page-${currentPage}`}>
+                  {filteredSolicitudes.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">No hay solicitudes</p>
+                  ) : (
+                    pagedSolicitudes.map(solicitud => (
+                      <SolicitudCard
+                        key={solicitud.id}
+                        solicitud={solicitud}
+                        isSelected={selectedSolicitud?.id === solicitud.id}
+                        onClick={() => handleSelectSolicitud(solicitud)}
+                      />
+                    ))
+                  )}
+                </div>
               </div>
 
               {filteredSolicitudes.length > itemsPerPage && (
@@ -399,17 +608,19 @@ const UserPortal = () => {
           {/* Panel de Detalle (escritorio) */}
           <div className="lg:col-span-2 hidden lg:block">
             {selectedSolicitud ? (
-              <SolicitudDetail
-                solicitud={selectedSolicitud}
-                documentos={solicitudDocumentos}
-                mensajes={solicitudMensajes}
-                onUploadDocument={handleUploadDocument}
-                onSendMessage={handleSendMessage}
-                onUpdateDescripcion={handleUpdateDescripcion}
-                currentUserId={user.id}
-                isUserView={true}
-                signalRConnection={signalRConnection}
-              />
+              <div key={`user-detail-desktop-${selectedSolicitud.id}`} className="animate-fade-in-up">
+                <SolicitudDetail
+                  solicitud={selectedSolicitud}
+                  documentos={solicitudDocumentos}
+                  mensajes={solicitudMensajes}
+                  onUploadDocument={handleUploadDocument}
+                  onSendMessage={handleSendMessage}
+                  onUpdateDescripcion={handleUpdateDescripcion}
+                  currentUserId={user.id}
+                  isUserView={true}
+                  signalRConnection={signalRConnection}
+                />
+              </div>
             ) : (
               <div className="bg-white rounded-xl shadow-lg p-8 sm:p-12 text-center">
                 <div className="text-gray-400">
@@ -436,7 +647,7 @@ const UserPortal = () => {
             }`}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="max-h-[85vh] overflow-y-auto">
+            <div key={`user-detail-mobile-${selectedSolicitud.id}`} className="max-h-[85vh] overflow-y-auto animate-fade-in-up">
               <SolicitudDetail
                 solicitud={selectedSolicitud}
                 documentos={solicitudDocumentos}
