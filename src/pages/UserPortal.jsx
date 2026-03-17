@@ -97,7 +97,6 @@ const UserPortal = () => {
         });
         await Promise.all(joinPromises);
       } catch (error) {
-        console.error('Error uniéndose a grupos de SignalR (user):', error);
       }
     };
 
@@ -118,7 +117,6 @@ const UserPortal = () => {
           await Promise.all(leavePromises);
           joinedGroupsRef.current.clear();
         } catch (error) {
-          console.error('Error saliendo de grupos de SignalR (user):', error);
         }
       };
       leaveAllGroups();
@@ -185,10 +183,11 @@ const UserPortal = () => {
     }
   };
 
-  const handleUploadDocument = (file, categoria) => {
+  const handleUploadDocument = (file, categoria, options = {}) => {
     if (selectedSolicitud) {
-      uploadDocument(selectedSolicitud.id, file, categoria);
+      return uploadDocument(selectedSolicitud.id, file, categoria, options);
     }
+    return null;
   };
 
   const handleSendMessage = (contenido) => {
@@ -304,7 +303,6 @@ const UserPortal = () => {
         window.open(guiaUsoAbsoluteUrl, '_blank', 'noopener');
       }
     } catch (error) {
-      console.error('Error cargando guia de uso:', error);
       Swal.fire({
         title: 'No se pudo abrir la guia',
         text: 'Intentalo de nuevo en unos segundos.',

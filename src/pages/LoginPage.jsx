@@ -11,7 +11,6 @@ const LoginPage = () => {
     try {
       await login();
     } catch (error) {
-      console.error('Error iniciando sesión:', error);
       setLoading(false);
     }
   };

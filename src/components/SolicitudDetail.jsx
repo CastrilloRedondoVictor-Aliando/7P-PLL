@@ -17,10 +17,11 @@ const SolicitudDetail = ({
   showCloseButton = false,
   onClose,
 }) => {
-  const { getAccessToken, getDocumentDownloadUrl, getDocumentPreviewUrl, deleteDocument } = useAuth();
+  const { user, getAccessToken, getDocumentDownloadUrl, getDocumentPreviewUrl, deleteDocument } = useAuth();
   const [newMessage, setNewMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [pendingFiles, setPendingFiles] = useState([]);
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
   const [editingDescripcion, setEditingDescripcion] = useState(false);
   const [nuevaDescripcion, setNuevaDescripcion] = useState('');
   const [isSendBouncing, setIsSendBouncing] = useState(false);
@@ -28,6 +29,7 @@ const SolicitudDetail = ({
   const messagesContainerRef = useRef(null);
   const estadoColors = getEstadoColor(solicitud.estado);
   const shouldShowPercentage = !isUserView || solicitud.estado === 'Aceptada';
+  const isViewRole = user?.rol === 'view';
 
   const categorias = [
     { value: 'General', label: 'Principales funciones' },
@@ -55,9 +57,7 @@ const SolicitudDetail = ({
             body: JSON.stringify({ solicitudID: solicitud.id }),
             token
           });
-          console.log(`📥 Usuario unido al grupo de solicitud ${solicitud.id}`);
         } catch (error) {
-          console.error('Error uniéndose al grupo de SignalR:', error);
         }
       }
     };
@@ -75,9 +75,7 @@ const SolicitudDetail = ({
               body: JSON.stringify({ solicitudID: solicitud.id }),
               token
             });
-            console.log(`📤 Usuario salió del grupo de solicitud ${solicitud.id}`);
           } catch (error) {
-            console.error('Error saliendo del grupo de SignalR:', error);
           }
         }
       };
@@ -127,10 +125,49 @@ const SolicitudDetail = ({
     }
   };
 
-  const confirmUpload = () => {
-    if (pendingFiles.length > 0) {
-      pendingFiles.forEach(({ file, categoria }) => onUploadDocument(file, categoria));
+  const confirmUpload = async () => {
+    if (pendingFiles.length === 0 || isUploadingDocuments) return;
+
+    setIsUploadingDocuments(true);
+
+    try {
+      const filesToUpload = [...pendingFiles];
+
+      if (filesToUpload.length === 1) {
+        const { file, categoria } = filesToUpload[0];
+        await onUploadDocument(file, categoria);
+        setPendingFiles([]);
+        return;
+      }
+
+      let uploadedCount = 0;
+      let failedCount = 0;
+
+      for (const { file, categoria } of filesToUpload) {
+        try {
+          const uploaded = await onUploadDocument(file, categoria, { silent: true });
+          if (uploaded) {
+            uploadedCount += 1;
+          } else {
+            failedCount += 1;
+          }
+        } catch {
+          failedCount += 1;
+        }
+      }
+
       setPendingFiles([]);
+
+      Swal.fire({
+        icon: failedCount > 0 ? 'warning' : 'success',
+        title: failedCount > 0 ? 'Carga completada con incidencias' : 'Carga completada',
+        text: failedCount > 0
+          ? `Se subieron ${uploadedCount} documentos. ${failedCount} fallaron.`
+          : `Se subieron ${uploadedCount} documentos correctamente.`,
+        confirmButtonColor: '#1e40af'
+      });
+    } finally {
+      setIsUploadingDocuments(false);
     }
   };
 
@@ -256,7 +293,6 @@ const SolicitudDetail = ({
         text: 'No se pudo descargar el documento',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error descargando documento:', error);
     }
   };
 
@@ -284,7 +320,7 @@ const SolicitudDetail = ({
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
           <div>
             <div className="flex items-start justify-between gap-3">
-              <h2 className="text-xl sm:text-2xl font-bold">
+              <h2 className={`text-xl sm:text-2xl font-bold ${isUserView ? 'mb-3' : ''}`}>
                 {(solicitud.destino?.trim() ? solicitud.destino.toUpperCase() : 'SIN DESTINO')}
                 {' - '}
                 {solicitud.fechaInicio
@@ -435,6 +471,7 @@ const SolicitudDetail = ({
                         </label>
                         <select
                           value={pending.categoria}
+                          disabled={isUploadingDocuments}
                           onChange={(e) =>
                             setPendingFiles(prev =>
                               prev.map((item, i) =>
@@ -442,7 +479,7 @@ const SolicitudDetail = ({
                               )
                             )
                           }
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary text-sm"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary text-sm disabled:bg-gray-100 disabled:text-gray-500"
                         >
                           {categorias.map(cat => (
                             <option key={cat.value} value={cat.value}>{cat.label}</option>
@@ -452,7 +489,8 @@ const SolicitudDetail = ({
                     </div>
                     <button
                       onClick={() => removeFile(index)}
-                      className="flex-shrink-0 text-gray-400 hover:text-red-500 p-1 rounded transition-colors"
+                      disabled={isUploadingDocuments}
+                      className="flex-shrink-0 text-gray-400 hover:text-red-500 p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Eliminar"
                     >
                       <X className="w-5 h-5" />
@@ -463,21 +501,28 @@ const SolicitudDetail = ({
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={confirmUpload}
-                  className="flex-1 flex items-center justify-center space-x-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                  disabled={isUploadingDocuments}
+                  className="flex-1 flex items-center justify-center space-x-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:bg-blue-300 disabled:cursor-not-allowed"
                 >
-                  <CheckCircle className="w-5 h-5" />
-                  <span>Subir {pendingFiles.length} documento{pendingFiles.length !== 1 ? 's' : ''}</span>
+                  {isUploadingDocuments ? (
+                    <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
+                  ) : (
+                    <CheckCircle className="w-5 h-5" />
+                  )}
+                  <span>{isUploadingDocuments ? 'Subiendo documentos...' : `Subir ${pendingFiles.length} documento${pendingFiles.length !== 1 ? 's' : ''}`}</span>
                 </button>
                 <button
                   onClick={cancelUpload}
-                  className="flex items-center justify-center space-x-2 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors font-semibold"
+                  disabled={isUploadingDocuments}
+                  className="flex items-center justify-center space-x-2 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <X className="w-5 h-5" />
                   <span>Cancelar</span>
                 </button>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center justify-center space-x-2 border-2 border-primary text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
+                  disabled={isUploadingDocuments}
+                  className="flex items-center justify-center space-x-2 border-2 border-primary text-primary px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Upload className="w-5 h-5" />
                   <span>Agregar más</span>
@@ -729,7 +774,7 @@ const SolicitudDetail = ({
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder={isUserView ? 'Debes ser administrador para poder enviar mensajes' : 'Escribe un mensaje...'}
+              placeholder={isViewRole ? 'Debes ser administrador para poder enviar mensajes' : 'Escribe un mensaje...'}
               className="flex-1 px-4 py-2 text-xs sm:text-base border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
             />
             <button

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { XCircle, Plus, Search } from 'lucide-react';
+import { XCircle, Search } from 'lucide-react';
 
 const SolicitudModalBase = ({
   isOpen,
@@ -73,6 +73,7 @@ const SolicitudModalBase = ({
   const [selectedEmails, setSelectedEmails] = useState([]);
   const [isClosing, setIsClosing] = useState(false);
   const [dateError, setDateError] = useState('');
+  const normalizedSubmitLabel = (submitLabel || '').toString().replace(/^\s*\+\s*/, '');
 
   useEffect(() => {
     if (isOpen) {
@@ -215,14 +216,15 @@ const SolicitudModalBase = ({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="bg-primary text-white p-4 sm:p-6 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+        <div className="relative bg-primary text-white p-4 sm:p-6 pr-14">
           <div>
             <h3 className="text-2xl font-bold">{title || 'Nueva Solicitud'}</h3>
             <p className="text-blue-200 text-sm">{headerSubtitle}</p>
           </div>
           <button
             onClick={requestClose}
-            className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
+            className="absolute top-3 right-3 sm:top-4 sm:right-4 text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
+            aria-label="Cerrar modal"
           >
             <XCircle className="w-6 h-6" />
           </button>
@@ -456,10 +458,9 @@ const SolicitudModalBase = ({
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center text-center"
             >
-              <Plus className="w-5 h-5" />
-              <span>{submitLabel}</span>
+              {normalizedSubmitLabel}
             </button>
           </div>
         </form>

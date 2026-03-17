@@ -272,11 +272,9 @@ const AdminDashboard = () => {
             token
           });
           joinedGroupsRef.current.add(sol.id);
-          console.log(`📥 Admin unido al grupo de solicitud ${sol.id}`);
         });
         await Promise.all(joinPromises);
       } catch (error) {
-        console.error('Error uniéndose a grupos de SignalR (admin):', error);
       }
     };
 
@@ -293,12 +291,10 @@ const AdminDashboard = () => {
               body: JSON.stringify({ solicitudID }),
               token
             });
-            console.log(`📤 Admin salió del grupo de solicitud ${solicitudID}`);
           });
           await Promise.all(leavePromises);
           joinedGroupsRef.current.clear();
         } catch (error) {
-          console.error('Error saliendo de grupos de SignalR (admin):', error);
         }
       };
       leaveAllGroups();
@@ -438,7 +434,6 @@ const AdminDashboard = () => {
         }
       } catch (error) {
         failed.push(email);
-        console.error(`Error creando solicitud para ${email}:`, error);
       }
     }
 
@@ -475,7 +470,6 @@ const AdminDashboard = () => {
         const data = await apiRequest('/auth/users?role=user', { token });
         setAvailableUsers(Array.isArray(data?.users) ? data.users : []);
       } catch (error) {
-        console.error('Error cargando usuarios para nueva solicitud:', error);
         setAvailableUsers([]);
       } finally {
         setIsLoadingAvailableUsers(false);
@@ -656,7 +650,6 @@ const AdminDashboard = () => {
         text: 'No se pudo descargar el documento',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error descargando documento:', error);
     }
   };
 
@@ -791,7 +784,6 @@ const AdminDashboard = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(zipUrl);
     } catch (error) {
-      console.error('Error descargando solicitud completa:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error al descargar',
@@ -980,7 +972,7 @@ const AdminDashboard = () => {
       .map(segment => segment.trim())
       .filter(Boolean)
       .map((segment) => {
-        const match = segment.match(/^(.+?)\s*[-–]\s*(.+)$/);
+        const match = segment.match(/^(.+?)\s*[-�?"]\s*(.+)$/);
         if (!match) return null;
         return {
           from: match[1].trim(),
@@ -1109,7 +1101,6 @@ const AdminDashboard = () => {
 
         if (!email) {
           failedCount += 1;
-          console.warn(`Fila ${rowNumber}: correo vacio en Excel`);
           continue;
         }
 
@@ -1120,7 +1111,6 @@ const AdminDashboard = () => {
         };
 
         if (!user?.oid) {
-          console.warn(`Fila ${rowNumber}: no se encontro usuario en Entra para el email ${email}. Se usa el correo como usuarioOID.`);
         }
 
         const proyecto = '';
@@ -1160,7 +1150,6 @@ const AdminDashboard = () => {
           createdCount += 1;
         } catch (error) {
           failedCount += 1;
-          console.error(`Error importando fila ${rowNumber}:`, error);
         }
       }
 
@@ -1182,7 +1171,6 @@ const AdminDashboard = () => {
         text: 'No se pudo importar el Excel',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error importando Excel:', error);
     } finally {
       setIsImporting(false);
       if (event.target) {
@@ -1923,7 +1911,7 @@ const AdminDashboard = () => {
                     <h3 className="text-xl sm:text-2xl font-bold">{getProyectoDisplayName(selectedSolicitud.proyecto)}</h3>
                   </div>
                   {!isViewRole && (
-                    <div className="sm:hidden mt-2 flex items-center gap-2 w-full">
+                    <div className="sm:hidden mt-2 mb-4 flex items-center gap-2 w-full">
                       <button
                         type="button"
                         onClick={handleOpenEditSolicitud}
@@ -1981,9 +1969,11 @@ const AdminDashboard = () => {
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className="flex items-center">
-                        <Plane className="w-4 h-4 mr-1" />
-                        Trayecto: {selectedSolicitud.trayecto?.trim() ? selectedSolicitud.trayecto : 'Sin dato'}
+                      <span className="flex items-start">
+                        <Plane className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
+                        <span>
+                          Trayecto: {selectedSolicitud.trayecto?.trim() ? selectedSolicitud.trayecto : 'Sin dato'}
+                        </span>
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">

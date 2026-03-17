@@ -37,11 +37,7 @@ export const AuthProvider = ({ children }) => {
     if (!isAuthDebugEnabled || !token) return;
     try {
       const decoded = JSON.parse(atob(token.split('.')[1]));
-      console.log(`${source} token iss:`, decoded.iss);
-      console.log(`${source} token aud:`, decoded.aud);
-      console.log(`${source} token exp:`, decoded.exp ? new Date(decoded.exp * 1000) : null);
     } catch {
-      console.warn(`${source} token claims could not be decoded`);
     }
   }, [isAuthDebugEnabled]);
 
@@ -98,7 +94,6 @@ export const AuthProvider = ({ children }) => {
       logTokenClaims(token, `MSAL silent (${hasApiScope ? 'access' : 'id'})`);
       return token;
     } catch (error) {
-      console.error('Error obteniendo token silenciosamente:', error);
       // Si falla el token silencioso, intentar con popup
       try {
         const response = await instance.acquireTokenPopup(loginRequest);
@@ -109,7 +104,6 @@ export const AuthProvider = ({ children }) => {
         logTokenClaims(token, `MSAL popup (${hasApiScope ? 'access' : 'id'})`);
         return token;
       } catch (popupError) {
-        console.error('Error obteniendo token con popup:', popupError);
         throw popupError;
       }
     }
@@ -156,7 +150,6 @@ export const AuthProvider = ({ children }) => {
       
       return true;
     } catch (error) {
-      console.error('Error sincronizando usuario:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error de autenticación',
@@ -173,7 +166,6 @@ export const AuthProvider = ({ children }) => {
   const initializeSignalR = async () => {
     try {
       if (connectionRef.current) {
-        console.log('⚠️ Conexión SignalR ya existe, cerrando anterior...');
         await connectionRef.current.stop();
         connectionRef.current = null;
       }
@@ -186,7 +178,6 @@ export const AuthProvider = ({ children }) => {
         token
       });
 
-      console.log('🔑 Token de SignalR obtenido, iniciando conexión...');
 
       // Crear conexión SignalR usando Microsoft SignalR client
       const connection = new HubConnectionBuilder()
@@ -199,7 +190,6 @@ export const AuthProvider = ({ children }) => {
 
       // Event: Recibir mensaje nuevo
       connection.on('ReceiveMessage', (mensaje) => {
-        console.log('📩 Mensaje recibido en tiempo real:', mensaje);
         setMensajes(prev => {
           // Evitar duplicados
           const exists = prev.some(m => m.id === mensaje.id);
@@ -210,30 +200,25 @@ export const AuthProvider = ({ children }) => {
 
       // Event: Reconectando
       connection.onreconnecting(error => {
-        console.warn('🔄 SignalR reconectando...', error);
         setIsSignalRConnected(false);
       });
 
       // Event: Reconectado
       connection.onreconnected(connectionId => {
-        console.log('✅ SignalR reconectado:', connectionId);
         setIsSignalRConnected(true);
       });
 
       // Event: Conexión cerrada
       connection.onclose(error => {
-        console.error('❌ SignalR desconectado:', error);
         setIsSignalRConnected(false);
       });
 
       // Iniciar conexión
       await connection.start();
-      console.log('✅ Conexión SignalR establecida');
       
       connectionRef.current = connection;
       setIsSignalRConnected(true);
     } catch (error) {
-      console.error('❌ Error inicializando SignalR:', error);
       setIsSignalRConnected(false);
     }
   };
@@ -242,7 +227,6 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     return () => {
       if (connectionRef.current) {
-        console.log('🗑️ Cerrando conexión SignalR...');
         connectionRef.current.stop();
         connectionRef.current = null;
       }
@@ -271,7 +255,6 @@ export const AuthProvider = ({ children }) => {
       const mensajesData = await apiRequest('/mensajes', { token });
       setMensajes(mensajesData);
     } catch (error) {
-      console.error('Error cargando datos:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -290,7 +273,6 @@ export const AuthProvider = ({ children }) => {
       // El callback se maneja en App.jsx
       return true;
     } catch (error) {
-      console.error('Error en login:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -306,14 +288,14 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       await instance.logoutRedirect();
     } catch (error) {
-      console.error('Error en logout:', error);
       // Forzar limpieza aunque falle MSAL
       setUser(null);
       sessionStorage.removeItem('user');
     }
   };
 
-  const uploadDocument = async (solicitudID, file, categoria) => {
+  const uploadDocument = async (solicitudID, file, categoria, options = {}) => {
+    const { silent = false } = options;
     try {
       const token = await getAccessToken();
 
@@ -330,23 +312,29 @@ export const AuthProvider = ({ children }) => {
 
       
       setDocumentos(prevDocumentos => [...prevDocumentos, data]);
-      
-      Swal.fire({
-        icon: 'success',
-        title: '¡Documento subido!',
-        text: `${file.name} se ha subido correctamente`,
-        confirmButtonColor: '#1e40af',
-        timer: 2000,
-        showConfirmButton: false
-      });
+
+      if (!silent) {
+        Swal.fire({
+          icon: 'success',
+          title: '¡Documento subido!',
+          text: `${file.name} se ha subido correctamente`,
+          confirmButtonColor: '#1e40af',
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
+
+      return data;
     } catch (error) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'No se pudo subir el documento',
-        confirmButtonColor: '#1e40af'
-      });
-      console.error('Error subiendo documento:', error);
+      if (!silent) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se pudo subir el documento',
+          confirmButtonColor: '#1e40af'
+        });
+      }
+      return null;
     }
   };
 
@@ -396,7 +384,6 @@ export const AuthProvider = ({ children }) => {
         text: 'No se pudo eliminar el documento',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error eliminando documento:', error);
     }
   };
 
@@ -429,10 +416,8 @@ export const AuthProvider = ({ children }) => {
         return [...prev, data];
       });
 
-      console.log('✅ Mensaje enviado:', data);
       return data;
     } catch (error) {
-      console.error('❌ Error enviando mensaje:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -509,7 +494,6 @@ export const AuthProvider = ({ children }) => {
         text: 'No se pudo actualizar el estado',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error actualizando estado:', error);
     }
   };
 
@@ -552,7 +536,6 @@ export const AuthProvider = ({ children }) => {
         text: 'No se pudo eliminar la solicitud',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error eliminando solicitud:', error);
       return false;
     }
   };
@@ -626,7 +609,6 @@ export const AuthProvider = ({ children }) => {
         })
       );
     } catch (error) {
-      console.error('Error marcando mensajes como leídos:', error);
     }
   };
 
@@ -647,7 +629,6 @@ export const AuthProvider = ({ children }) => {
         )
       );
     } catch (error) {
-      console.error('Error marcando documentos como vistos:', error);
     }
   };
 
@@ -665,7 +646,6 @@ export const AuthProvider = ({ children }) => {
       });
       return data?.users || [];
     } catch (error) {
-      console.error('Error resolviendo usuarios:', error);
       return [];
     }
   };
@@ -717,7 +697,6 @@ export const AuthProvider = ({ children }) => {
         text: 'No se pudo actualizar el título',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error actualizando título:', error);
     }
   };
 
@@ -734,7 +713,7 @@ export const AuthProvider = ({ children }) => {
         method: 'PUT',
         body: JSON.stringify({
           proyecto: solicitudActual.proyecto,
-          descripcion: nuevaDescripcion,
+           descripcion: nuevaDescripcion,
           estado: solicitudActual.estado
         }),
         token
@@ -753,10 +732,10 @@ export const AuthProvider = ({ children }) => {
         )
       );
 
-      Swal.fire({
-        icon: 'success',
-        title: '¡Descripción actualizada!',
-        text: 'La descripción de la solicitud se ha actualizado correctamente',
+       Swal.fire({
+         icon: 'success',
+         title: '¡Principales funciones actualizadas!',
+         text: 'Las principales funciones de la solicitud se han actualizado correctamente',
         confirmButtonColor: '#1e40af',
         timer: 2000,
         showConfirmButton: false
@@ -765,10 +744,9 @@ export const AuthProvider = ({ children }) => {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'No se pudo actualizar la descripción',
+        text: 'No se pudieron actualizar las principales funciones',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error actualizando descripción:', error);
     }
   };
 
@@ -838,7 +816,6 @@ export const AuthProvider = ({ children }) => {
         text: 'No se pudo actualizar la solicitud',
         confirmButtonColor: '#1e40af'
       });
-      console.error('Error actualizando solicitud completa:', error);
       return null;
     }
   };

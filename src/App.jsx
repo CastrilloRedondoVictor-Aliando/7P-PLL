@@ -24,16 +24,12 @@ function App() {
         const redirectToken = hasApiScope ? response?.accessToken : response?.idToken;
 
         if (response && redirectToken) {
-          console.log('✅ Login exitoso, response:', response);
           // Hubo un login exitoso, sincronizar con backend usando el token del response
           const success = await handleLoginSuccess(redirectToken);
-          console.log('Resultado sincronización:', success);
         } else if (response) {
           const success = await handleLoginSuccess();
-          console.log('Resultado sincronización (silent):', success);
         }
       } catch (error) {
-        console.error('❌ Error manejando redirect:', error);
       } finally {
         setIsProcessingCallback(false);
       }
@@ -49,7 +45,6 @@ function App() {
       try {
         await handleLoginSuccess();
       } catch (error) {
-        console.error('❌ Error sincronizando usuario en inicio:', error);
       }
     };
 
