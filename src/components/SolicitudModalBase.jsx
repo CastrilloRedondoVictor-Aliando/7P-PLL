@@ -5,9 +5,11 @@ const SolicitudModalBase = ({
   isOpen,
   onClose,
   onCreate,
+  onSubmit,
   availableUsers,
   loadingUsers,
   mode,
+  title,
   headerSubtitle,
   submitLabel,
   projectLabel,
@@ -15,16 +17,57 @@ const SolicitudModalBase = ({
   projectHelper,
   commentsLabel,
   commentsPlaceholder,
-  requireComments
+  requireComments,
+  hideRecipientSelector,
+  initialData,
+  showPercentageField
 }) => {
+  const toDateInputValue = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') {
+      const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (isoMatch) {
+        return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+      }
+      const esMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (esMatch) {
+        return `${esMatch[3]}-${esMatch[2]}-${esMatch[1]}`;
+      }
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    const year = parsed.getFullYear();
+    const month = `${parsed.getMonth() + 1}`.padStart(2, '0');
+    const day = `${parsed.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const buildInitialFormData = () => ({
+    proyecto: initialData?.proyecto || '',
+    comentarios: initialData?.comentarios || '',
+    trayecto: initialData?.trayecto || '',
+    destino: initialData?.destino || '',
+    fechaInicio: toDateInputValue(initialData?.fechaInicio),
+    fechaFin: toDateInputValue(initialData?.fechaFin),
+    empresa: initialData?.empresa || '',
+    horasCodigo: initialData?.horasCodigo || '',
+    porcentaje:
+      initialData?.porcentaje === null || initialData?.porcentaje === undefined || initialData?.porcentaje === ''
+        ? ''
+        : `${initialData.porcentaje}`
+  });
+  const shouldSelectRecipients = mode === 'admin' && !hideRecipientSelector;
   const [formData, setFormData] = useState({
     proyecto: '',
     comentarios: '',
-    pais: '',
+    trayecto: '',
+    destino: '',
     fechaInicio: '',
     fechaFin: '',
     empresa: '',
-    horasCodigo: ''
+    horasCodigo: '',
+    porcentaje: ''
   });
   const [searchInput, setSearchInput] = useState('');
   const [selectedEmails, setSelectedEmails] = useState([]);
@@ -33,9 +76,14 @@ const SolicitudModalBase = ({
 
   useEffect(() => {
     if (isOpen) {
+      setFormData(buildInitialFormData());
+      setSearchInput('');
+      setSelectedEmails([]);
+      setDateError('');
       setIsClosing(false);
     }
-  }, [isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialData]);
 
   const normalizedSearch = (searchInput || '').trim().toLowerCase();
   const filteredAvailableUsers = useMemo(() => {
@@ -71,7 +119,7 @@ const SolicitudModalBase = ({
     }, 180);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.fechaInicio && formData.fechaFin) {
       const start = new Date(formData.fechaInicio);
@@ -81,38 +129,66 @@ const SolicitudModalBase = ({
         return;
       }
     }
+
+    if (showPercentageField && formData.porcentaje !== '') {
+      const parsedPorcentaje = Number(formData.porcentaje);
+      if (Number.isNaN(parsedPorcentaje) || parsedPorcentaje < 0 || parsedPorcentaje > 100) {
+        setDateError('El porcentaje debe estar entre 0 y 100');
+        return;
+      }
+    }
+
     setDateError('');
 
     const baseExtras = {
-      pais: formData.pais,
+      trayecto: formData.trayecto,
+      destino: formData.destino,
       fechaInicio: formData.fechaInicio,
       fechaFin: formData.fechaFin,
       empresa: formData.empresa,
-      horasCodigo: formData.horasCodigo
+      horasCodigo: formData.horasCodigo,
+      porcentaje: showPercentageField && formData.porcentaje !== '' ? Number(formData.porcentaje) : undefined
     };
 
-    if (mode === 'admin') {
+    let submitResult;
+    if (mode === 'admin' && shouldSelectRecipients) {
       if (selectedEmails.length > 0 && formData.proyecto) {
-        onCreate(selectedEmails, formData.proyecto, '', baseExtras);
+        submitResult = await onCreate(selectedEmails, formData.proyecto, '', baseExtras);
       } else {
         return;
       }
+    } else if (mode === 'admin') {
+      if (!formData.proyecto) {
+        return;
+      }
+      const submitFn = onSubmit || onCreate;
+      submitResult = await submitFn({
+        proyecto: formData.proyecto,
+        comentarios: formData.comentarios,
+        ...baseExtras
+      });
     } else {
       if (formData.proyecto && (!requireComments || formData.comentarios)) {
-        onCreate(formData.proyecto, formData.comentarios, baseExtras);
+        submitResult = await onCreate(formData.proyecto, formData.comentarios, baseExtras);
       } else {
         return;
       }
     }
 
+    if (submitResult === false || submitResult === null) {
+      return;
+    }
+
     setFormData({
       proyecto: '',
       comentarios: '',
-      pais: '',
+      trayecto: '',
+      destino: '',
       fechaInicio: '',
       fechaFin: '',
       empresa: '',
-      horasCodigo: ''
+      horasCodigo: '',
+      porcentaje: ''
     });
     setSearchInput('');
     setSelectedEmails([]);
@@ -141,7 +217,7 @@ const SolicitudModalBase = ({
       >
         <div className="bg-primary text-white p-4 sm:p-6 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
           <div>
-            <h3 className="text-2xl font-bold">Nueva Solicitud</h3>
+            <h3 className="text-2xl font-bold">{title || 'Nueva Solicitud'}</h3>
             <p className="text-blue-200 text-sm">{headerSubtitle}</p>
           </div>
           <button
@@ -153,7 +229,7 @@ const SolicitudModalBase = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
-          {mode === 'admin' && (
+          {shouldSelectRecipients && (
             <div>
               <label htmlFor="emails" className="block text-sm font-semibold text-gray-700 mb-2">
                 Emails destinatarios *
@@ -256,17 +332,32 @@ const SolicitudModalBase = ({
             <h4 className="text-sm font-semibold text-gray-700 mb-3">Campos opcionales</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="pais" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="trayecto" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Trayecto
+                </label>
+                <input
+                  id="trayecto"
+                  name="trayecto"
+                  type="text"
+                  value={formData.trayecto}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                  placeholder="Ej: Madrid - Barcelona / Barcelona - Madrid"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="destino" className="block text-sm font-semibold text-gray-700 mb-2">
                   Destino
                 </label>
                 <input
-                  id="pais"
-                  name="pais"
+                  id="destino"
+                  name="destino"
                   type="text"
-                  value={formData.pais}
+                  value={formData.destino}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
-                  placeholder="Ej: Estambul"
+                  placeholder="Ej: Barcelona"
                 />
               </div>
 
@@ -314,6 +405,26 @@ const SolicitudModalBase = ({
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
                 />
               </div>
+
+              {showPercentageField && (
+                <div>
+                  <label htmlFor="porcentaje" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Porcentaje
+                  </label>
+                  <input
+                    id="porcentaje"
+                    name="porcentaje"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={formData.porcentaje}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                    placeholder="Ej: 75"
+                  />
+                </div>
+              )}
               {dateError && (
                 <p className="text-xs text-red-500 sm:col-span-2">{dateError}</p>
               )}

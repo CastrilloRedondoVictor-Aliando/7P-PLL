@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, Check, X, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown, Upload, Menu } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown, Upload, Menu, Plane } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import JSZip from 'jszip';
 import Swal from 'sweetalert2';
@@ -7,9 +7,10 @@ import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../config/api';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import CreateSolicitudModal from '../components/CreateSolicitudModal';
+import EditSolicitudModal from '../components/EditSolicitudModal';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudTitulo, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudCompleta, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken } = useAuth();
   const isViewRole = user?.rol === 'view';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
@@ -17,12 +18,11 @@ const AdminDashboard = () => {
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [availableUsers, setAvailableUsers] = useState([]);
   const [isLoadingAvailableUsers, setIsLoadingAvailableUsers] = useState(false);
   const [showMessagesDropdown, setShowMessagesDropdown] = useState(false);
   const [showDocsDropdown, setShowDocsDropdown] = useState(false);
-  const [editingTitulo, setEditingTitulo] = useState(false);
-  const [nuevoTitulo, setNuevoTitulo] = useState('');
   const messagesContainerRef = useRef(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
   const [isSendBouncing, setIsSendBouncing] = useState(false);
@@ -79,7 +79,7 @@ const AdminDashboard = () => {
     const searchValue = searchTerm.toLowerCase();
     const matchesSearch = !searchValue ||
       s.usuarioNombre?.toLowerCase().includes(searchValue) ||
-      s.pais?.toLowerCase().includes(searchValue);
+      s.destino?.toLowerCase().includes(searchValue);
     const matchesFilter = filterEstado === 'Todos' || s.estado === filterEstado;
     const targetDate = filterFecha ? new Date(filterFecha) : null;
     if (targetDate) {
@@ -548,27 +548,40 @@ const AdminDashboard = () => {
     setIsClosingDetail(true);
     setTimeout(() => {
       setSelectedSolicitud(null);
-      setEditingTitulo(false);
+      setIsEditModalOpen(false);
       setIsClosingDetail(false);
     }, 180);
   };
 
-  const handleEditTitulo = () => {
-    setNuevoTitulo(selectedSolicitud.proyecto);
-    setEditingTitulo(true);
+  const handleOpenEditSolicitud = () => {
+    if (!selectedSolicitud || isViewRole) return;
+    setIsEditModalOpen(true);
   };
 
-  const handleSaveTitulo = async () => {
-    if (nuevoTitulo.trim() && nuevoTitulo !== selectedSolicitud.proyecto) {
-      await updateSolicitudTitulo(selectedSolicitud.id, nuevoTitulo.trim());
-      setSelectedSolicitud(prev => ({ ...prev, proyecto: nuevoTitulo.trim() }));
+  const handleSaveEditedSolicitud = async (data) => {
+    if (!selectedSolicitud) return;
+    const payload = {
+      proyecto: data.proyecto,
+      descripcion: data.comentarios,
+      trayecto: data.trayecto,
+      destino: data.destino,
+      fechaInicio: data.fechaInicio,
+      fechaFin: data.fechaFin,
+      empresa: data.empresa,
+      horasCodigo: data.horasCodigo,
+      porcentaje: data.porcentaje
+    };
+
+    const updated = await updateSolicitudCompleta(selectedSolicitud.id, payload);
+    if (updated) {
+      setSelectedSolicitud(prev => ({
+        ...prev,
+        ...updated
+      }));
+      setIsEditModalOpen(false);
+      return updated;
     }
-    setEditingTitulo(false);
-  };
-
-  const handleCancelEditTitulo = () => {
-    setEditingTitulo(false);
-    setNuevoTitulo('');
+    return null;
   };
 
   const handleDownloadDocument = async (doc) => {
@@ -662,7 +675,8 @@ const AdminDashboard = () => {
       ['Usuario email', solicitud.usuarioEmail || ''],
       ['Estado', solicitud.estado || ''],
       ['Porcentaje', solicitud.porcentaje ?? 0],
-      ['Destino', solicitud.pais || ''],
+      ['Trayecto', solicitud.trayecto || ''],
+      ['Destino', solicitud.destino || ''],
       ['Empresa', solicitud.empresa || solicitud.filial || ''],
       ['Fecha inicio', solicitud.fechaInicio ? formatDate(solicitud.fechaInicio) : ''],
       ['Fecha fin', solicitud.fechaFin ? formatDate(solicitud.fechaFin) : ''],
@@ -695,7 +709,7 @@ const AdminDashboard = () => {
 
   const getSolicitudZipName = (solicitud) => {
     const userName = toZipToken(getUserName(solicitud.usuarioID), 'UsuarioDesconocido');
-    const destino = toZipToken(solicitud.pais, 'SinDestino');
+    const destino = toZipToken(solicitud.destino, 'SinDestino');
 
     const fechaInicio = solicitud.fechaInicio ? new Date(solicitud.fechaInicio) : null;
     const hasValidDate = fechaInicio && !Number.isNaN(fechaInicio.getTime());
@@ -806,7 +820,8 @@ const AdminDashboard = () => {
       Email: sol.usuarioEmail || '',
       Estado: sol.estado || '',
       Porcentaje: sol.porcentaje !== null && sol.porcentaje !== undefined ? sol.porcentaje : 0,
-      Destino: sol.pais || '',
+      Trayecto: sol.trayecto || '',
+      Destino: sol.destino || '',
       Empresa: sol.empresa || sol.filial || '',
       'Fecha inicio': sol.fechaInicio ? formatDate(sol.fechaInicio) : '',
       'Fecha fin': sol.fechaFin ? formatDate(sol.fechaFin) : '',
@@ -1002,7 +1017,7 @@ const AdminDashboard = () => {
     const isRoundTrip = normalizeStringToken(origin) === normalizeStringToken(finalPoint) && cleanPoints.length > 2;
 
     if (!isRoundTrip) {
-      return finalPoint;
+      return legs[0]?.to || cleanPoints[1] || finalPoint;
     }
 
     if (cleanPoints.length % 2 === 1) {
@@ -1092,10 +1107,20 @@ const AdminDashboard = () => {
         const email = emailCell ? emailCell.toString().trim().toLowerCase() : '';
         const user = usersByEmail.get(email);
 
-        if (!email || !user?.oid) {
+        if (!email) {
           failedCount += 1;
-          console.warn(`Fila ${rowNumber}: no se encontró usuario en Entra para el email`, email || '(vacío)');
+          console.warn(`Fila ${rowNumber}: correo vacio en Excel`);
           continue;
+        }
+
+        const usuarioOID = user?.oid || email;
+        const userMeta = {
+          nombre: user?.nombre || email,
+          email: user?.email || email
+        };
+
+        if (!user?.oid) {
+          console.warn(`Fila ${rowNumber}: no se encontro usuario en Entra para el email ${email}. Se usa el correo como usuarioOID.`);
         }
 
         const proyecto = '';
@@ -1111,7 +1136,8 @@ const AdminDashboard = () => {
           || getRowValueByHeaders(row, ['Destino', 'Pais'])?.toString();
 
         const extraFields = {
-          pais: destino ? destino.toString() : undefined,
+          trayecto: trayectoCompleto ? trayectoCompleto.toString() : undefined,
+          destino: destino ? destino.toString() : undefined,
           fechaInicio: parseExcelDate(getRowValueByHeaders(row, ['fecha salida', 'Fecha inicio'])),
           fechaFin: parseExcelDate(getRowValueByHeaders(row, ['fecha fin del viaje', 'Fecha fin'])),
           empresa: getRowValueByHeaders(row, ['Unidad organizativa', 'Empresa'])?.toString() || undefined,
@@ -1120,10 +1146,7 @@ const AdminDashboard = () => {
         };
 
         try {
-          const created = await createSolicitud(user.oid, proyecto, comentarios, extraFields, {
-            nombre: user.nombre,
-            email: user.email
-          });
+          const created = await createSolicitud(usuarioOID, proyecto, comentarios, extraFields, userMeta);
           if (!created) {
             failedCount += 1;
             continue;
@@ -1738,7 +1761,7 @@ const AdminDashboard = () => {
                           </div>
                         </td>
                         <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden md:table-cell whitespace-nowrap">
-                          {solicitud.pais?.trim() ? solicitud.pais : 'Sin destino'}
+                          {solicitud.destino?.trim() ? solicitud.destino : 'Sin destino'}
                         </td>
                         <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 whitespace-nowrap hidden md:table-cell">
                           <div>Inicio: {solicitud.fechaInicio ? formatDate(solicitud.fechaInicio) : 'Sin fecha'}</div>
@@ -1806,7 +1829,7 @@ const AdminDashboard = () => {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] uppercase tracking-wider text-gray-400">Destino</span>
-                      <span className="font-semibold text-gray-800">{solicitud.pais?.trim() ? solicitud.pais : 'Sin destino'}</span>
+                      <span className="font-semibold text-gray-800">{solicitud.destino?.trim() ? solicitud.destino : 'Sin destino'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] uppercase tracking-wider text-gray-400">Fecha de inicio</span>
@@ -1896,60 +1919,40 @@ const AdminDashboard = () => {
               <div className="bg-primary text-white p-6 relative">
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
                   <div>
-                  {editingTitulo ? (
-                    <div className="flex items-center space-x-2 pr-12">
-                      <input
-                        type="text"
-                        value={nuevoTitulo}
-                        onChange={(e) => setNuevoTitulo(e.target.value)}
-                        className="flex-1 px-3 py-2 text-gray-900 rounded-lg focus:outline-none"
-                        autoFocus
-                        onKeyPress={(e) => e.key === 'Enter' && handleSaveTitulo()}
-                      />
-                      <button
-                        onClick={handleSaveTitulo}
-                        className="bg-white text-primary hover:bg-blue-50 p-2 rounded-lg transition-colors shadow-sm"
-                        title="Guardar"
-                      >
-                        <Check className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={handleCancelEditTitulo}
-                        className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                        title="Cancelar"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:space-x-2">
-                      <h3 className="text-xl sm:text-2xl font-bold">{getProyectoDisplayName(selectedSolicitud.proyecto)}</h3>
-                      <button
-                        onClick={handleEditTitulo}
-                        className="hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors self-start sm:self-auto"
-                        title="Editar título"
-                      >
-                        <Edit2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:space-x-2">
+                    <h3 className="text-xl sm:text-2xl font-bold">{getProyectoDisplayName(selectedSolicitud.proyecto)}</h3>
+                  </div>
                   {!isViewRole && (
-                    <button
-                      type="button"
-                      onClick={handleDownloadSolicitudPackage}
-                      disabled={isDownloadingSolicitud}
-                      className="sm:hidden mt-2 bg-white text-primary hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold inline-flex items-center justify-center gap-2 w-full"
-                      title="Descargar solicitud completa"
-                    >
-                      {isDownloadingSolicitud ? (
-                        <>
-                          <span className="inline-block w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
-                          Descargando...
-                        </>
-                      ) : (
-                        'Descargar información'
-                      )}
-                    </button>
+                    <div className="sm:hidden mt-2 flex items-center gap-2 w-full">
+                      <button
+                        type="button"
+                        onClick={handleOpenEditSolicitud}
+                        className="bg-white bg-opacity-20 text-white px-3 py-2 rounded-lg hover:bg-opacity-30 transition-colors text-sm font-semibold inline-flex items-center justify-center gap-2 w-full shadow-md min-h-[52px]"
+                        title="Editar solicitud"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        <span className="leading-tight text-center">Editar<br />información</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDownloadSolicitudPackage}
+                        disabled={isDownloadingSolicitud}
+                        className="bg-white bg-opacity-20 text-white px-3 py-2 rounded-lg hover:bg-opacity-30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold inline-flex items-center justify-center gap-2 w-full shadow-md min-h-[52px]"
+                        title="Descargar solicitud completa"
+                      >
+                        {isDownloadingSolicitud ? (
+                          <>
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
+                            Descargando...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-4 h-4" />
+                            <span className="leading-tight text-center">Descargar<br />información</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   )}
                   <p className="text-blue-200 text-sm">Usuario: {getUserName(selectedSolicitud.usuarioID)}</p>
                   <div className="flex flex-col gap-2 text-blue-100 text-sm mt-2">
@@ -1966,7 +1969,7 @@ const AdminDashboard = () => {
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="flex items-center">
                         <MapPin className="w-4 h-4 mr-1" />
-                        Destino: {selectedSolicitud.pais?.trim() ? selectedSolicitud.pais : 'Sin destino'}
+                        Destino: {selectedSolicitud.destino?.trim() ? selectedSolicitud.destino : 'Sin destino'}
                       </span>
                       <span className="flex items-center">
                         <Building2 className="w-4 h-4 mr-1" />
@@ -1976,6 +1979,14 @@ const AdminDashboard = () => {
                         <Percent className="w-4 h-4 mr-1" />
                         Porcentaje: {selectedSolicitud.porcentaje !== null && selectedSolicitud.porcentaje !== undefined && selectedSolicitud.porcentaje !== '' ? `${selectedSolicitud.porcentaje}%` : '0%'}
                       </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="flex items-center">
+                        <Plane className="w-4 h-4 mr-1" />
+                        Trayecto: {selectedSolicitud.trayecto?.trim() ? selectedSolicitud.trayecto : 'Sin dato'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
                       <span className="flex items-center">
                         <Clock className="w-4 h-4 mr-1" />
                         Codigo de horas: {selectedSolicitud.horasCodigo?.trim() ? selectedSolicitud.horasCodigo : 'Sin dato'}
@@ -1991,22 +2002,36 @@ const AdminDashboard = () => {
                   <XCircle className="w-6 h-6" />
                 </button>
                 {!isViewRole && (
-                  <button
-                    type="button"
-                    onClick={handleDownloadSolicitudPackage}
-                    disabled={isDownloadingSolicitud}
-                    className="hidden sm:inline-flex absolute top-4 right-16 bg-white text-primary hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold items-center gap-2"
-                    title="Descargar solicitud completa"
-                  >
-                    {isDownloadingSolicitud ? (
-                      <>
-                        <span className="inline-block w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
-                        Descargando...
-                      </>
-                    ) : (
-                      'Descargar información'
-                    )}
-                  </button>
+                  <div className="hidden sm:flex absolute top-4 right-16 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleOpenEditSolicitud}
+                      className="bg-white bg-opacity-20 text-white px-3 py-2 rounded-lg hover:bg-opacity-30 transition-colors text-sm font-semibold inline-flex items-center gap-2 shadow-md"
+                      title="Editar solicitud"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      Editar información
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadSolicitudPackage}
+                      disabled={isDownloadingSolicitud}
+                      className="bg-white bg-opacity-20 text-white px-3 py-2 rounded-lg hover:bg-opacity-30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold inline-flex items-center gap-2 shadow-md"
+                      title="Descargar solicitud completa"
+                    >
+                      {isDownloadingSolicitud ? (
+                        <>
+                          <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
+                          Descargando...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          Descargar información
+                        </>
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -2239,6 +2264,13 @@ const AdminDashboard = () => {
         onCreate={handleCreateSolicitud}
         availableUsers={availableUsers}
         loadingUsers={isLoadingAvailableUsers}
+      />
+
+      <EditSolicitudModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSubmit={handleSaveEditedSolicitud}
+        initialData={selectedSolicitud}
       />
     </div>
   );

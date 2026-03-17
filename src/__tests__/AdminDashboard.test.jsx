@@ -14,6 +14,17 @@ let mockCreatePayload = {
   comentarios: '',
   extraFields: {}
 };
+let mockEditPayload = {
+  proyecto: 'Proyecto Editado',
+  comentarios: 'Comentario editado',
+  trayecto: 'Madrid - Estambul / Estambul - Madrid',
+  destino: 'Estambul',
+  fechaInicio: '2026-03-04',
+  fechaFin: '2026-03-10',
+  empresa: 'Perez-Llorca',
+  horasCodigo: 'HC-100',
+  porcentaje: 80
+};
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => mockUseAuth()
@@ -40,6 +51,19 @@ vi.mock('../components/CreateSolicitudModal', () => ({
     >
       Mock Create
     </button>
+  )
+}));
+
+vi.mock('../components/EditSolicitudModal', () => ({
+  default: ({ isOpen, onSubmit }) => (
+    isOpen ? (
+      <button
+        type="button"
+        onClick={() => onSubmit(mockEditPayload)}
+      >
+        Mock Save Edit
+      </button>
+    ) : null
   )
 }));
 
@@ -95,6 +119,11 @@ const baseAuthState = {
   logout: vi.fn(),
   updateSolicitudEstado: vi.fn(),
   updateSolicitudTitulo: vi.fn(),
+  updateSolicitudCompleta: vi.fn().mockResolvedValue({
+    id: 2,
+    proyecto: 'Proyecto Editado',
+    comentarios: 'Comentario editado'
+  }),
   sendMessage: vi.fn(),
   createSolicitud: vi.fn().mockResolvedValue({ id: 10, usuarioNombre: 'Nuevo', usuarioEmail: 'nuevo@empresa.com' }),
   markMessagesAsRead: vi.fn(),
@@ -118,6 +147,17 @@ describe('AdminDashboard', () => {
       proyecto: '',
       comentarios: '',
       extraFields: {}
+    };
+    mockEditPayload = {
+      proyecto: 'Proyecto Editado',
+      comentarios: 'Comentario editado',
+      trayecto: 'Madrid - Estambul / Estambul - Madrid',
+      destino: 'Estambul',
+      fechaInicio: '2026-03-04',
+      fechaFin: '2026-03-10',
+      empresa: 'Perez-Llorca',
+      horasCodigo: 'HC-100',
+      porcentaje: 80
     };
   });
 
@@ -169,6 +209,30 @@ describe('AdminDashboard', () => {
     expect(baseAuthState.updateSolicitudEstado).toHaveBeenCalledWith(1, 'Aceptada', 50);
   });
 
+  it('opens full edit flow and submits solicitud updates', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<AdminDashboard />);
+
+    const acceptedCells = screen.getAllByText('Proyecto Aceptado');
+    const acceptedCell = acceptedCells.find((cell) => cell.closest('tr'));
+    const row = acceptedCell?.closest('tr');
+    expect(row).toBeTruthy();
+
+    await user.click(row);
+    const editButtons = screen.getAllByRole('button', { name: /Editar información/i });
+    await user.click(editButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Mock Save Edit' }));
+
+    expect(baseAuthState.updateSolicitudCompleta).toHaveBeenCalledWith(2, expect.objectContaining({
+      proyecto: 'Proyecto Editado',
+      descripcion: 'Comentario editado',
+      trayecto: 'Madrid - Estambul / Estambul - Madrid',
+      destino: 'Estambul',
+      porcentaje: 80
+    }));
+    expect(container).toBeTruthy();
+  });
+
   it('exports excel and handles empty export', async () => {
     const user = userEvent.setup();
     const { unmount } = render(<AdminDashboard />);
@@ -211,7 +275,8 @@ describe('AdminDashboard', () => {
       expect(proyecto).toBe('');
       expect(comentarios).toBe('');
       expect(extraFields).toMatchObject({
-        pais: 'Estambul',
+        trayecto: 'Madrid - Estambul / Estambul - Madrid',
+        destino: 'Estambul',
         empresa: '700 - TECHNICAL MANAGEMENT',
         fechaInicio: '2026-03-04',
         fechaFin: '2026-03-10',
@@ -246,7 +311,35 @@ describe('AdminDashboard', () => {
     });
   });
 
-  it('uses fallback user when imported email is not found in Entra', async () => {
+  it('imports excel roundtrip that ends in different city and keeps intermediary destino', async () => {
+    XLSX.utils.sheet_to_json.mockReturnValue([
+      {
+        'Correo electrónico': 'import@empresa.com',
+        'Unidad organizativa': '700 - TECHNICAL MANAGEMENT',
+        'trayecto completo texto': 'Madrid - Paris / Paris - Milan',
+        'fecha salida': '4 de marzo de 2026',
+        'fecha fin del viaje': '2026-03-10'
+      }
+    ]);
+
+    const { container } = render(<AdminDashboard />);
+    const input = container.querySelector('input[type="file"][accept=".xlsx,.xls"]');
+    const file = new File(['excel'], 'import.xlsx', { type: 'application/vnd.ms-excel' });
+    file.arrayBuffer = vi.fn().mockResolvedValue(new ArrayBuffer(8));
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(baseAuthState.createSolicitud).toHaveBeenCalled();
+      const [, , , extraFields] = baseAuthState.createSolicitud.mock.calls[0];
+      expect(extraFields).toMatchObject({
+        trayecto: 'Madrid - Paris / Paris - Milan',
+        destino: 'Paris'
+      });
+    });
+  });
+
+  it('uses email as usuarioOID when imported email is not found in Entra', async () => {
     XLSX.utils.sheet_to_json.mockReturnValue([
       {
         'Correo electrónico': 'noexiste@empresa.com',
@@ -266,9 +359,24 @@ describe('AdminDashboard', () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => {
-      expect(baseAuthState.createSolicitud).not.toHaveBeenCalled();
+      expect(baseAuthState.createSolicitud).toHaveBeenCalledWith(
+        'noexiste@empresa.com',
+        '',
+        '',
+        expect.objectContaining({
+          trayecto: 'Madrid - Estambul / Estambul - Madrid',
+          destino: 'Estambul',
+          empresa: '700 - TECHNICAL MANAGEMENT',
+          fechaInicio: '2026-03-04',
+          fechaFin: '2026-03-10'
+        }),
+        {
+          nombre: 'noexiste@empresa.com',
+          email: 'noexiste@empresa.com'
+        }
+      );
       expect(mockSwalFire).toHaveBeenCalledWith(expect.objectContaining({
-        icon: 'warning'
+        icon: 'success'
       }));
     });
   });

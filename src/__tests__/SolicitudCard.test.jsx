@@ -7,7 +7,7 @@ describe('SolicitudCard', () => {
   it('renders title, estado and dates', () => {
     const solicitud = {
       estado: 'Pendiente',
-      pais: 'Espana',
+      destino: 'Espana',
       fechaInicio: '2026-03-04',
       fechaFin: '2026-03-10',
       comentarios: 'Comentario'

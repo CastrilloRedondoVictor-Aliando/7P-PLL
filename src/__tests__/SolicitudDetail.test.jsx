@@ -23,7 +23,7 @@ vi.mock('sweetalert2', () => ({
 const baseSolicitud = {
   id: 1,
   estado: 'Pendiente',
-  pais: 'Espana',
+  destino: 'Espana',
   fechaInicio: '2026-03-04',
   fechaFin: '2026-03-10',
   comentarios: 'Detalle',

@@ -5,14 +5,14 @@ import { formatDateShort, getEstadoColor } from '../utils/helpers';
 const SolicitudCard = ({ solicitud, isSelected, onClick }) => {
   const estadoColors = getEstadoColor(solicitud.estado);
   const travelTitle = () => {
-    const pais = solicitud.pais?.trim() ? solicitud.pais.toUpperCase() : 'SIN DESTINO';
+    const destino = solicitud.destino?.trim() ? solicitud.destino.toUpperCase() : 'SIN DESTINO';
     if (!solicitud.fechaInicio) {
-      return `${pais} - SIN FECHA`;
+      return `${destino} - SIN FECHA`;
     }
     const monthYear = new Date(solicitud.fechaInicio)
       .toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
       .toUpperCase();
-    return `${pais} - ${monthYear}`;
+    return `${destino} - ${monthYear}`;
   };
 
   return (

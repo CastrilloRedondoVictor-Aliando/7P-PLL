@@ -30,7 +30,7 @@ El portal se divide en dos areas:
 ## 4. Ver el detalle de una solicitud
 1. Haz clic en una solicitud de la lista.
 2. En el panel derecho veras:
-   - Datos generales (pais, fechas, etc.).
+   - Datos generales (destino, fechas, etc.).
    - Descripcion o comentarios.
    - Documentos adjuntos.
    - Conversacion de mensajes.

@@ -39,7 +39,7 @@ describe('SolicitudModalBase', () => {
     expect(onCreate).toHaveBeenCalledTimes(1);
     expect(onCreate.mock.calls[0][0]).toEqual(['uno@empresa.com']);
     expect(onCreate.mock.calls[0][1]).toBe('Proyecto X');
-    expect(onCreate.mock.calls[0][3]).toMatchObject({ pais: 'Espana' });
+    expect(onCreate.mock.calls[0][3]).toMatchObject({ destino: 'Espana' });
   });
 
   it('blocks when fechaInicio is after fechaFin', async () => {

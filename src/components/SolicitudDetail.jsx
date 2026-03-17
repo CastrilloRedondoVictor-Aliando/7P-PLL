@@ -285,7 +285,7 @@ const SolicitudDetail = ({
           <div>
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-xl sm:text-2xl font-bold">
-                {(solicitud.pais?.trim() ? solicitud.pais.toUpperCase() : 'SIN DESTINO')}
+                {(solicitud.destino?.trim() ? solicitud.destino.toUpperCase() : 'SIN DESTINO')}
                 {' - '}
                 {solicitud.fechaInicio
                   ? new Date(solicitud.fechaInicio)
@@ -318,7 +318,7 @@ const SolicitudDetail = ({
               <div className="flex flex-wrap items-center gap-3">
                 <span className="flex items-center">
                   <MapPin className="w-4 h-4 mr-1" />
-                  Destino: {solicitud.pais?.trim() ? solicitud.pais : 'Sin destino'}
+                  Destino: {solicitud.destino?.trim() ? solicitud.destino : 'Sin destino'}
                 </span>
                 {shouldShowPercentage && (
                   <span className="flex items-center">

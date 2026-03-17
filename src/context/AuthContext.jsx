@@ -561,7 +561,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const token = await getAccessToken();
       const normalizedExtras = {
-        pais: extraFields.pais?.trim() || undefined,
+        trayecto: extraFields.trayecto?.trim() || undefined,
+        destino: extraFields.destino?.trim() || undefined,
         fechaInicio: extraFields.fechaInicio || undefined,
         fechaFin: extraFields.fechaFin || undefined,
         empresa: extraFields.empresa?.trim() || undefined,
@@ -771,6 +772,77 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateSolicitudCompleta = async (solicitudID, updates = {}) => {
+    const solicitudActual = solicitudes.find(s => s.id === solicitudID);
+
+    if (!solicitudActual) {
+      throw new Error('Solicitud no encontrada');
+    }
+
+    const normalizeNullableText = (value) => {
+      if (value === undefined || value === null) return null;
+      const trimmed = value.toString().trim();
+      return trimmed === '' ? null : trimmed;
+    };
+
+    try {
+      const token = await getAccessToken();
+      const payload = {
+        proyecto: updates.proyecto,
+        descripcion: updates.descripcion,
+        trayecto: normalizeNullableText(updates.trayecto),
+        destino: normalizeNullableText(updates.destino),
+        fechaInicio: updates.fechaInicio || null,
+        fechaFin: updates.fechaFin || null,
+        empresa: normalizeNullableText(updates.empresa),
+        horasCodigo: normalizeNullableText(updates.horasCodigo),
+        porcentaje:
+          updates.porcentaje === undefined || updates.porcentaje === null || updates.porcentaje === ''
+            ? undefined
+            : Number(updates.porcentaje)
+      };
+
+      const data = await apiRequest(`/solicitudes/${solicitudID}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+        token
+      });
+
+      const solicitudActualizada = {
+        ...data,
+        usuarioNombre: data.usuarioNombre ?? solicitudActual.usuarioNombre,
+        cargo: data.cargo ?? solicitudActual.cargo,
+        departamento: data.departamento ?? solicitudActual.departamento
+      };
+
+      setSolicitudes(prev =>
+        prev.map(sol =>
+          sol.id === solicitudID ? solicitudActualizada : sol
+        )
+      );
+
+      Swal.fire({
+        icon: 'success',
+        title: '¡Solicitud actualizada!',
+        text: 'Los datos de la solicitud se han actualizado correctamente',
+        confirmButtonColor: '#1e40af',
+        timer: 2000,
+        showConfirmButton: false
+      });
+
+      return solicitudActualizada;
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo actualizar la solicitud',
+        confirmButtonColor: '#1e40af'
+      });
+      console.error('Error actualizando solicitud completa:', error);
+      return null;
+    }
+  };
+
   const value = {
     user,
     solicitudes,
@@ -791,6 +863,7 @@ export const AuthProvider = ({ children }) => {
     deleteSolicitud,
     updateSolicitudTitulo,
     updateSolicitudDescripcion,
+    updateSolicitudCompleta,
     createSolicitud,
     markMessagesAsRead,
     markDocsAsViewed,

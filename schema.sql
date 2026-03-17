@@ -1,12 +1,12 @@
 -- Crear tabla de Solicitudes
 CREATE TABLE Solicitudes (
     id INT PRIMARY KEY IDENTITY(1,1),
-    numero NVARCHAR(50) NOT NULL UNIQUE,
     proyecto NVARCHAR(200) NOT NULL,
     descripcion NVARCHAR(MAX),
     estado NVARCHAR(30) NOT NULL CHECK (estado IN ('Pendiente', 'En revisión', 'Aceptada', 'Rechazada')),
     usuarioOID NVARCHAR(50) NOT NULL,
-    pais NVARCHAR(100) NULL,
+    trayecto NVARCHAR(300) NULL,
+    destino NVARCHAR(100) NULL,
     fechaInicio DATE NULL,
     fechaFin DATE NULL,
     empresa NVARCHAR(150) NULL,
