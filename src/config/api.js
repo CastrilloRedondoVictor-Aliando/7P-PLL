@@ -1,5 +1,7 @@
+import { getClientEnv } from './runtimeEnv';
+
 // URL base de la API
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://7p-pll-api.azurewebsites.net/api';
+export const API_BASE_URL = getClientEnv('VITE_API_URL', 'https://7p-pll-api.azurewebsites.net/api');
 
 // Helper para hacer requests
 export const apiRequest = async (endpoint, options = {}) => {

@@ -1,9 +1,11 @@
-const ciamHost = import.meta.env.VITE_AZURE_CIAM_HOST || 'pllltexternal.ciamlogin.com';
-const tenantId = import.meta.env.VITE_AZURE_TENANT_ID || '';
-const authority = import.meta.env.VITE_AZURE_AUTHORITY || (tenantId ? `https://${ciamHost}/${tenantId}` : `https://${ciamHost}`);
-const apiScope = (import.meta.env.VITE_AZURE_API_SCOPE || '').trim();
+import { getClientEnv } from './runtimeEnv';
+
+const ciamHost = getClientEnv('VITE_AZURE_CIAM_HOST', 'pllltexternal.ciamlogin.com');
+const tenantId = getClientEnv('VITE_AZURE_TENANT_ID', '');
+const authority = getClientEnv('VITE_AZURE_AUTHORITY', tenantId ? `https://${ciamHost}/${tenantId}` : `https://${ciamHost}`);
+const apiScope = getClientEnv('VITE_AZURE_API_SCOPE', '').trim();
 export const hasApiScope = Boolean(apiScope);
-const knownAuthoritiesFromEnv = (import.meta.env.VITE_AZURE_KNOWN_AUTHORITIES || '')
+const knownAuthoritiesFromEnv = getClientEnv('VITE_AZURE_KNOWN_AUTHORITIES', '')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
@@ -23,14 +25,14 @@ const knownAuthorities = knownAuthoritiesFromEnv.length > 0
 
 export const msalConfig = {
   auth: {
-    clientId: import.meta.env.VITE_AZURE_CLIENT_ID,
+    clientId: getClientEnv('VITE_AZURE_CLIENT_ID', ''),
     authority,
     ...(knownAuthorities ? { knownAuthorities } : {}),
     redirectUri: import.meta.env.PROD 
-      ? import.meta.env.VITE_AZURE_REDIRECT_URI_PROD
+      ? getClientEnv('VITE_AZURE_REDIRECT_URI_PROD', '')
       : 'http://localhost:5174',
     postLogoutRedirectUri: import.meta.env.PROD
-      ? import.meta.env.VITE_AZURE_REDIRECT_URI_PROD
+      ? getClientEnv('VITE_AZURE_REDIRECT_URI_PROD', '')
       : 'http://localhost:5174',
   },
   cache: {

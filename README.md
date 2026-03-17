@@ -37,6 +37,8 @@ El rol se asigna automáticamente al sincronizar el usuario tras login (`POST /a
 
 ## 🔧 Variables de entorno (frontend)
 
+### Desarrollo local
+
 Crear `mock/.env` (o `mock/.env.local`) con:
 
 ```env
@@ -47,8 +49,31 @@ VITE_API_URL=http://localhost:3000/api
 VITE_AZURE_CLIENT_ID=...
 
 # URL de producción (SWA). En desarrollo se usa http://localhost:5174
-VITE_AZURE_REDIRECT_URI_PROD=https://polite-sky-09fcdc103.4.azurestaticapps.net
+VITE_AZURE_REDIRECT_URI_PROD=https://<tu-front-appservice>.azurewebsites.net
 ```
+
+### Producción en Azure App Service
+
+- Configura estas mismas claves como **Application Settings** del App Service del frontend.
+- El frontend las leerá en runtime desde `/env-config.js` (generado por `server.js` con `process.env`).
+- No dependas de `.env` en producción.
+
+Claves esperadas en App Service (frontend):
+
+- `VITE_API_URL`
+- `VITE_AZURE_CLIENT_ID`
+- `VITE_AZURE_TENANT_ID`
+- `VITE_AZURE_AUTHORITY`
+- `VITE_AZURE_KNOWN_AUTHORITIES`
+- `VITE_AZURE_CIAM_HOST`
+- `VITE_AZURE_API_SCOPE`
+- `VITE_AZURE_REDIRECT_URI_PROD`
+- `VITE_AUTH_DEBUG`
+
+## 🔧 Variables de entorno (backend)
+
+En el App Service del backend, configura en **Application Settings** las variables de `backend-mock` (`DB_*`, `AZURE_STORAGE_*`, `LOGIC_APP_STATUS_URL`, `CORS_ALLOWED_ORIGINS`, etc.).
+El backend ya las consume desde `process.env`.
 
 ## ▶️ Ejecución local (front + back)
 
