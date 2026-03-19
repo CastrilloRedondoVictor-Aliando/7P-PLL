@@ -5,10 +5,11 @@ import { hasApiScope } from './config/msalConfig';
 import LoginPage from './pages/LoginPage';
 import UserPortal from './pages/UserPortal';
 import AdminDashboard from './pages/AdminDashboard';
+import AccessDeniedPage from './pages/AccessDeniedPage';
 import './App.css';
 
 function App() {
-  const { user, isInitializing, handleLoginSuccess } = useAuth();
+  const { user, accessDenied, isInitializing, handleLoginSuccess } = useAuth();
   const { instance } = useMsal();
   const isAuthenticated = useIsAuthenticated();
   const [isProcessingCallback, setIsProcessingCallback] = useState(true);
@@ -25,11 +26,12 @@ function App() {
 
         if (response && redirectToken) {
           // Hubo un login exitoso, sincronizar con backend usando el token del response
-          const success = await handleLoginSuccess(redirectToken);
+          await handleLoginSuccess(redirectToken);
         } else if (response) {
-          const success = await handleLoginSuccess();
+          await handleLoginSuccess();
         }
       } catch (error) {
+        console.error('[App] Error procesando callback de login', error);
       } finally {
         setIsProcessingCallback(false);
       }
@@ -41,10 +43,11 @@ function App() {
   useEffect(() => {
     const syncIfNeeded = async () => {
       if (!isAuthenticated || isProcessingCallback) return;
-      if (user && user.entraIdOID) return;
+      if (user) return;
       try {
         await handleLoginSuccess();
       } catch (error) {
+        console.error('[App] Error sincronizando sesion', error);
       }
     };
 
@@ -106,6 +109,9 @@ function App() {
 
   // Si no hay usuario autenticado, mostrar login
   if (!user || !isAuthenticated) {
+    if (isAuthenticated && accessDenied) {
+      return <AccessDeniedPage />;
+    }
     return <LoginPage />;
   }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown, Upload, Menu, Plane } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown, Upload, Menu, Plane, UserPlus, UserMinus, X } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import JSZip from 'jszip';
 import Swal from 'sweetalert2';
@@ -10,8 +10,9 @@ import CreateSolicitudModal from '../components/CreateSolicitudModal';
 import EditSolicitudModal from '../components/EditSolicitudModal';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudCompleta, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudCompleta, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken, authorizedUsers, isLoadingAuthorizedUsers, loadAuthorizedUsers, addAuthorizedUser, removeAuthorizedUser, importAuthorizedUsersFromFile } = useAuth();
   const isViewRole = user?.rol === 'view';
+  const isAdminRole = user?.rol === 'admin';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterFecha, setFilterFecha] = useState('');
@@ -35,6 +36,12 @@ const AdminDashboard = () => {
   const [showLoadingScreen, setShowLoadingScreen] = useState(loading);
   const [isLoadingClosing, setIsLoadingClosing] = useState(false);
   const [isDownloadingSolicitud, setIsDownloadingSolicitud] = useState(false);
+  const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
+  const [authorizedEmailInput, setAuthorizedEmailInput] = useState('');
+  const [importFile, setImportFile] = useState(null);
+  const [isImportingAuthorizedUsers, setIsImportingAuthorizedUsers] = useState(false);
+  const [isSubmittingAuthorizedEmail, setIsSubmittingAuthorizedEmail] = useState(false);
+  const [isRemovingAuthorizedUserId, setIsRemovingAuthorizedUserId] = useState(null);
   const messagesButtonRef = useRef(null);
   const mobileMessagesButtonRef = useRef(null);
   const messagesDropdownRef = useRef(null);
@@ -109,6 +116,12 @@ const AdminDashboard = () => {
     completadas: solicitudes.filter(s => s.estado === 'Aceptada').length,
     rechazadas: solicitudes.filter(s => s.estado === 'Rechazada').length,
   };
+
+  const filteredAuthorizedUsers = (authorizedUsers || []).filter((authorizedUser) => {
+    const searchValue = searchTerm.toLowerCase();
+    if (!searchValue) return true;
+    return (authorizedUser?.email || '').toLowerCase().includes(searchValue);
+  });
 
   const getProyectoDisplayName = (proyecto) => {
     const normalized = proyecto?.toString().trim();
@@ -466,9 +479,8 @@ const AdminDashboard = () => {
       if (!isCreateModalOpen) return;
       try {
         setIsLoadingAvailableUsers(true);
-        const token = await getAccessToken();
-        const data = await apiRequest('/auth/users?role=user', { token });
-        setAvailableUsers(Array.isArray(data?.users) ? data.users : []);
+        const users = await loadAuthorizedUsers();
+        setAvailableUsers(Array.isArray(users) ? users.map((item) => ({ ...item, nombre: item.email })) : []);
       } catch (error) {
         setAvailableUsers([]);
       } finally {
@@ -477,7 +489,119 @@ const AdminDashboard = () => {
     };
 
     loadAvailableUsers();
-  }, [isCreateModalOpen, getAccessToken]);
+  }, [isCreateModalOpen, loadAuthorizedUsers]);
+
+  useEffect(() => {
+    if (!isAdminRole && !isViewRole) return;
+    loadAuthorizedUsers();
+  }, [isAdminRole, isViewRole, loadAuthorizedUsers]);
+
+  const handleAddAuthorizedEmail = async () => {
+    const normalizedEmail = (authorizedEmailInput || '').toString().trim().toLowerCase();
+    if (!normalizedEmail) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Email requerido',
+        text: 'Introduce un correo para autorizar acceso.',
+        confirmButtonColor: '#1e40af'
+      });
+      return;
+    }
+
+    try {
+      setIsSubmittingAuthorizedEmail(true);
+      await addAuthorizedUser(normalizedEmail);
+      setAuthorizedEmailInput('');
+      Swal.fire({
+        icon: 'success',
+        title: 'Correo autorizado',
+        text: `${normalizedEmail} ya puede entrar en la aplicación.`,
+        timer: 2200,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error?.message || 'No se pudo autorizar el correo.',
+        confirmButtonColor: '#1e40af'
+      });
+    } finally {
+      setIsSubmittingAuthorizedEmail(false);
+    }
+  };
+
+  const handleRemoveAuthorizedEmail = async (row) => {
+    if (!row?.id) return;
+
+    const result = await Swal.fire({
+      title: '¿Eliminar acceso?',
+      text: `Se quitará el acceso a ${row.email}`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      setIsRemovingAuthorizedUserId(row.id);
+      await removeAuthorizedUser(row.id);
+      Swal.fire({
+        icon: 'success',
+        title: 'Acceso eliminado',
+        text: `${row.email} ya no puede acceder.`,
+        timer: 2200,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error?.message || 'No se pudo eliminar el acceso.',
+        confirmButtonColor: '#1e40af'
+      });
+    } finally {
+      setIsRemovingAuthorizedUserId(null);
+    }
+  };
+
+  const handleImportAuthorizedUsers = async () => {
+    if (!importFile) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Archivo requerido',
+        text: 'Selecciona un archivo de texto para importar correos.',
+        confirmButtonColor: '#1e40af'
+      });
+      return;
+    }
+
+    try {
+      setIsImportingAuthorizedUsers(true);
+      const result = await importAuthorizedUsersFromFile(importFile);
+      const summary = result?.summary || {};
+      Swal.fire({
+        icon: 'success',
+        title: 'Importación completada',
+        text: `Detectados: ${summary.detected || 0}. Añadidos: ${summary.inserted || 0}. Ya existentes: ${summary.alreadyExists || 0}.`,
+        confirmButtonColor: '#1e40af'
+      });
+      setImportFile(null);
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error?.message || 'No se pudo importar el archivo.',
+        confirmButtonColor: '#1e40af'
+      });
+    } finally {
+      setIsImportingAuthorizedUsers(false);
+    }
+  };
 
   const handleSendMessage = () => {
     if (isViewRole) return;
@@ -1400,11 +1524,11 @@ const AdminDashboard = () => {
                 : 'max-h-0 opacity-0 -translate-y-1 pointer-events-none'
             }`}
           >
-            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+            <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 xl:gap-3 w-full lg:w-auto">
               {!isViewRole && (
                 <button
                   onClick={() => setIsCreateModalOpen(true)}
-                  className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center"
+                  className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center whitespace-nowrap"
                 >
                   <Plus className="w-5 h-5" />
                   <span>Nueva Solicitud</span>
@@ -1413,7 +1537,7 @@ const AdminDashboard = () => {
 
               <button
                 onClick={handleExportSolicitudes}
-                className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center"
+                className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center whitespace-nowrap"
               >
                 <FileDown className="w-5 h-5" />
                 <span>Exportar Excel</span>
@@ -1424,7 +1548,7 @@ const AdminDashboard = () => {
                   <button
                     onClick={() => importInputRef.current?.click()}
                     disabled={isImporting}
-                    className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
                   >
                     <Upload className="w-5 h-5" />
                     <span>{isImporting ? 'Importando...' : 'Importar Excel'}</span>
@@ -1437,6 +1561,16 @@ const AdminDashboard = () => {
                     onChange={handleImportExcel}
                   />
                 </>
+              )}
+
+              {(isAdminRole || isViewRole) && (
+                <button
+                  onClick={() => setIsUsersModalOpen(true)}
+                  className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center whitespace-nowrap"
+                >
+                  <UserPlus className="w-5 h-5" />
+                  <span>Gestión Usuarios</span>
+                </button>
               )}
 
               {/* Badge de mensajes no leídos (solo escritorio) */}
@@ -2245,6 +2379,122 @@ const AdminDashboard = () => {
             </div>
           </div>
         )}
+
+      {(isAdminRole || isViewRole) && isUsersModalOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 animate-fade-in"
+          onClick={() => setIsUsersModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-3xl w-[95vw] sm:w-full max-h-[92vh] overflow-y-auto animate-pop-in"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="relative bg-primary text-white p-4 sm:p-6 pr-14">
+              <div>
+                <h3 className="text-2xl font-bold">Usuarios autorizados</h3>
+                <p className="text-blue-200 text-sm">Solo los correos de esta tabla pueden entrar a la app.</p>
+              </div>
+              <button
+                onClick={() => setIsUsersModalOpen(false)}
+                className="absolute top-3 right-3 sm:top-4 sm:right-4 text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
+                aria-label="Cerrar modal"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-end mb-4">
+                <span className="text-sm font-semibold text-primary">{authorizedUsers.length} correos</span>
+              </div>
+
+              {isAdminRole && (
+                <div className="space-y-3 mb-4">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="email"
+                      value={authorizedEmailInput}
+                      onChange={(event) => setAuthorizedEmailInput(event.target.value)}
+                      placeholder="correo@dominio.com"
+                      className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddAuthorizedEmail}
+                      disabled={isSubmittingAuthorizedEmail}
+                      className="bg-primary text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>{isSubmittingAuthorizedEmail ? 'Añadiendo...' : 'Añadir correo'}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="file"
+                      accept=".txt,.csv,.md,.log,.rtf,.doc,.docx,.text"
+                      onChange={(event) => setImportFile(event.target.files?.[0] || null)}
+                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleImportAuthorizedUsers}
+                      disabled={isImportingAuthorizedUsers}
+                      className="bg-primary text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60"
+                    >
+                      {isImportingAuthorizedUsers ? 'Importando...' : 'Importar archivo'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">Formatos soportados: txt, csv, md, log, rtf, doc y docx.</p>
+                </div>
+              )}
+
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Correo</th>
+                      {isAdminRole && (
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Acción</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {isLoadingAuthorizedUsers ? (
+                      <tr>
+                        <td colSpan={isAdminRole ? 2 : 1} className="px-4 py-4 text-sm text-gray-500">Cargando usuarios autorizados...</td>
+                      </tr>
+                    ) : filteredAuthorizedUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan={isAdminRole ? 2 : 1} className="px-4 py-4 text-sm text-gray-500">No hay correos autorizados.</td>
+                      </tr>
+                    ) : (
+                      filteredAuthorizedUsers.map((row) => (
+                        <tr key={row.id}>
+                          <td className="px-4 py-3 text-sm text-gray-900">{row.email}</td>
+                          {isAdminRole && (
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAuthorizedEmail(row)}
+                                disabled={isRemovingAuthorizedUserId === row.id}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-red-600 hover:bg-red-50 disabled:opacity-60"
+                              >
+                                <UserMinus className="w-4 h-4" />
+                                <span>{isRemovingAuthorizedUserId === row.id ? 'Eliminando...' : 'Quitar'}</span>
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
 
       {/* Modal de crear solicitud */}
