@@ -1,24 +1,51 @@
 import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { PublicClientApplication } from '@azure/msal-browser'
-import { MsalProvider } from '@azure/msal-react'
 import './index.css'
-import App from './App.jsx'
-import { AuthProvider } from './context/AuthContext'
-import { msalConfig } from './config/msalConfig'
 
-// Inicializar MSAL
-const msalInstance = new PublicClientApplication(msalConfig);
+const loadRuntimeConfig = async () => {
+  if (globalThis.window === undefined) return;
 
-// Inicializar MSAL antes de renderizar
-msalInstance.initialize().then(() => {
+  await new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = `/env-config.js?ts=${Date.now()}`;
+    script.async = false;
+    script.onload = () => resolve();
+    script.onerror = () => resolve();
+    document.head.appendChild(script);
+  });
+};
+
+const bootstrap = async () => {
+  await loadRuntimeConfig();
+
+  const [
+    { createRoot },
+    { PublicClientApplication },
+    { MsalProvider },
+    { default: App },
+    authContextModule,
+    msalConfigModule,
+  ] = await Promise.all([
+    import('react-dom/client'),
+    import('@azure/msal-browser'),
+    import('@azure/msal-react'),
+    import('./App.jsx'),
+    import('./context/AuthContext'),
+    import('./config/msalConfig'),
+  ]);
+
+  const msalInstance = new PublicClientApplication(msalConfigModule.msalConfig);
+
+  await msalInstance.initialize();
+
   createRoot(document.getElementById('root')).render(
     <StrictMode>
       <MsalProvider instance={msalInstance}>
-        <AuthProvider>
+        <authContextModule.AuthProvider>
           <App />
-        </AuthProvider>
+        </authContextModule.AuthProvider>
       </MsalProvider>
     </StrictMode>,
   );
-});
+};
+
+bootstrap();

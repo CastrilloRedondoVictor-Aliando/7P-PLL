@@ -1,5 +1,13 @@
 import { getClientEnv } from './runtimeEnv';
 
+const getDefaultRedirectUri = () => {
+  if (globalThis.window !== undefined && globalThis.location?.origin) {
+    return globalThis.location.origin;
+  }
+
+  return '';
+};
+
 const tenantId = getClientEnv('VITE_AZURE_TENANT_ID', '');
 const defaultAuthority = tenantId
   ? `https://login.microsoftonline.com/${tenantId}`
@@ -32,10 +40,10 @@ export const msalConfig = {
     authority,
     ...(knownAuthorities.length > 0 ? { knownAuthorities } : {}),
     redirectUri: import.meta.env.PROD 
-      ? getClientEnv('VITE_AZURE_REDIRECT_URI_PROD', '')
+      ? getClientEnv('VITE_AZURE_REDIRECT_URI_PROD', getDefaultRedirectUri())
       : 'http://localhost:5174',
     postLogoutRedirectUri: import.meta.env.PROD
-      ? getClientEnv('VITE_AZURE_REDIRECT_URI_PROD', '')
+      ? getClientEnv('VITE_AZURE_REDIRECT_URI_PROD', getDefaultRedirectUri())
       : 'http://localhost:5174',
   },
   cache: {
