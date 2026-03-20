@@ -1924,43 +1924,43 @@ const AdminDashboard = () => {
                     <h3 className="text-xl sm:text-2xl font-bold">{getProyectoDisplayName(selectedSolicitud.proyecto)}</h3>
                   </div>
                   {!isViewRole && (
-                    <div className="sm:hidden mt-2 mb-4 flex items-center gap-2 w-full">
+                    <div className="sm:hidden mt-3 mb-4 grid grid-cols-2 gap-2 w-full">
                       <button
                         type="button"
                         onClick={handleOpenEditSolicitud}
-                        className="bg-white bg-opacity-20 text-white px-3 py-2 rounded-lg hover:bg-opacity-30 transition-colors text-sm font-semibold inline-flex items-center justify-center gap-2 w-full shadow-md min-h-[52px]"
+                        className="bg-white bg-opacity-20 text-white px-3 py-2.5 rounded-lg hover:bg-opacity-30 transition-colors text-sm font-semibold inline-flex items-start justify-center gap-2 w-full shadow-md min-h-[56px] min-w-0"
                         title="Editar solicitud"
                       >
-                        <Edit2 className="w-4 h-4" />
-                        <span className="leading-tight text-center">Editar<br />información</span>
+                        <Edit2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <span className="leading-tight text-center break-words">Editar<br />información</span>
                       </button>
                       <button
                         type="button"
                         onClick={handleDownloadSolicitudPackage}
                         disabled={isDownloadingSolicitud}
-                        className="bg-white bg-opacity-20 text-white px-3 py-2 rounded-lg hover:bg-opacity-30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold inline-flex items-center justify-center gap-2 w-full shadow-md min-h-[52px]"
+                        className="bg-white bg-opacity-20 text-white px-3 py-2.5 rounded-lg hover:bg-opacity-30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold inline-flex items-start justify-center gap-2 w-full shadow-md min-h-[56px] min-w-0"
                         title="Descargar solicitud completa"
                       >
                         {isDownloadingSolicitud ? (
                           <>
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
-                            Descargando...
+                            <span className="inline-block w-3.5 h-3.5 mt-0.5 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0" aria-hidden="true"></span>
+                            <span className="leading-tight text-center break-words">Descargando...</span>
                           </>
                         ) : (
                           <>
-                            <Download className="w-4 h-4" />
-                            <span className="leading-tight text-center">Descargar<br />información</span>
+                            <Download className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <span className="leading-tight text-center break-words">Descargar<br />información</span>
                           </>
                         )}
                       </button>
                       <button
                         type="button"
                         onClick={handleDeleteSolicitud}
-                        className="bg-red-600 bg-opacity-90 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold inline-flex items-center justify-center gap-2 w-full shadow-md min-h-[52px]"
+                        className="col-span-2 bg-red-600 bg-opacity-90 text-white px-3 py-2.5 rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold inline-flex items-start justify-center gap-2 w-full shadow-md min-h-[56px] min-w-0"
                         title="Eliminar viaje"
                       >
-                        <Trash2 className="w-4 h-4" />
-                        <span className="leading-tight text-center">Eliminar<br />viaje</span>
+                        <Trash2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <span className="leading-tight text-center break-words">Eliminar<br />viaje</span>
                       </button>
                     </div>
                   )}

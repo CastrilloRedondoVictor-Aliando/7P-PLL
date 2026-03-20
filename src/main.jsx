@@ -44,7 +44,7 @@ const bootstrap = async () => {
           <App />
         </authContextModule.AuthProvider>
       </MsalProvider>
-    </StrictMode>,
+    </StrictMode>
   );
 };
 
