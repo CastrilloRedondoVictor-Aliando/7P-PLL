@@ -1,11 +1,11 @@
 import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-const port = process.env.PORT || 8080;
+const port = globalThis.process?.env.PORT || 3000;
 const distPath = path.join(__dirname, 'dist');
 
 const clientEnvKeys = [
@@ -24,7 +24,7 @@ app.get('/env-config.js', (_req, res) => {
   const runtimeConfig = {};
 
   clientEnvKeys.forEach((key) => {
-    const value = process.env[key];
+    const value = globalThis.process?.env[key];
     if (typeof value === 'string' && value.length > 0) {
       runtimeConfig[key] = value;
     }
@@ -37,8 +37,11 @@ app.get('/env-config.js', (_req, res) => {
 
 app.use(express.static(distPath, { index: false }));
 
-app.get('*', (_req, res) => {
+app.use((_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
-app.listen(port);
+app.listen(port, () => {
+  console.info(`[frontend] Listening on port ${port}`);
+});
+
