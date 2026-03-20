@@ -16,13 +16,6 @@ CREATE TABLE Solicitudes (
     updatedAt DATETIME2 DEFAULT GETDATE()
 );
 
--- Crear tabla de usuarios autorizados (acceso a la app)
-CREATE TABLE UsuariosAutorizados (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    email NVARCHAR(320) NOT NULL UNIQUE,
-    createdAt DATETIME2 DEFAULT GETDATE()
-);
-
 -- Crear tabla de Documentos
 CREATE TABLE Documentos (
     id INT PRIMARY KEY IDENTITY(1,1),
@@ -56,4 +49,3 @@ CREATE INDEX idx_documentos_solicitud ON Documentos(solicitudID);
 CREATE INDEX idx_mensajes_solicitud ON Mensajes(solicitudID);
 CREATE INDEX idx_mensajes_leido_admin ON Mensajes(leidoPorAdmin);
 CREATE INDEX idx_mensajes_leido_user ON Mensajes(leidoPorUser);
-CREATE INDEX idx_usuarios_autorizados_email ON UsuariosAutorizados(email);

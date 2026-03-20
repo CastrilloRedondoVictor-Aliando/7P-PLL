@@ -12,11 +12,10 @@ const EditSolicitudModal = ({ isOpen, onClose, onSubmit, initialData }) => (
     submitLabel="Guardar cambios"
     projectLabel="Nombre del Proyecto *"
     projectPlaceholder="Ej: Proyecto Omega"
-    commentsLabel="Principales funciones realizadas"
-    commentsPlaceholder="Describe los detalles de la solicitud..."
     hideRecipientSelector
     initialData={initialData}
-    showPercentageField={initialData?.estado === 'Aceptada'}
+    showEstadoField
+    showPercentageField
   />
 );
 

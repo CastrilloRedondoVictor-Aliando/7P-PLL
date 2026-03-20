@@ -1,8 +1,10 @@
 import { getClientEnv } from './runtimeEnv';
 
-const ciamHost = getClientEnv('VITE_AZURE_CIAM_HOST', 'pllltexternal.ciamlogin.com');
 const tenantId = getClientEnv('VITE_AZURE_TENANT_ID', '');
-const authority = getClientEnv('VITE_AZURE_AUTHORITY', tenantId ? `https://${ciamHost}/${tenantId}` : `https://${ciamHost}`);
+const defaultAuthority = tenantId
+  ? `https://login.microsoftonline.com/${tenantId}`
+  : 'https://login.microsoftonline.com/organizations';
+const authority = getClientEnv('VITE_AZURE_AUTHORITY', defaultAuthority);
 const apiScope = getClientEnv('VITE_AZURE_API_SCOPE', '').trim();
 export const hasApiScope = Boolean(apiScope);
 const knownAuthoritiesFromEnv = getClientEnv('VITE_AZURE_KNOWN_AUTHORITIES', '')
@@ -19,15 +21,16 @@ const authorityHost = (() => {
 })();
 
 const isExternalIdAuthority = authorityHost.endsWith('ciamlogin.com');
-const knownAuthorities = knownAuthoritiesFromEnv.length > 0
-  ? knownAuthoritiesFromEnv
-  : (isExternalIdAuthority ? [authorityHost || ciamHost] : [ciamHost]);
+let knownAuthorities = knownAuthoritiesFromEnv;
+if (knownAuthorities.length === 0 && isExternalIdAuthority) {
+  knownAuthorities = [authorityHost];
+}
 
 export const msalConfig = {
   auth: {
     clientId: getClientEnv('VITE_AZURE_CLIENT_ID', ''),
     authority,
-    ...(knownAuthorities ? { knownAuthorities } : {}),
+    ...(knownAuthorities.length > 0 ? { knownAuthorities } : {}),
     redirectUri: import.meta.env.PROD 
       ? getClientEnv('VITE_AZURE_REDIRECT_URI_PROD', '')
       : 'http://localhost:5174',

@@ -184,14 +184,14 @@ const UserPortal = () => {
   };
 
   const handleUploadDocument = (file, categoria, options = {}) => {
-    if (selectedSolicitud) {
+    if (selectedSolicitud && selectedSolicitud.estado !== 'Aceptada' && selectedSolicitud.estado !== 'Rechazada') {
       return uploadDocument(selectedSolicitud.id, file, categoria, options);
     }
     return null;
   };
 
   const handleSendMessage = (contenido) => {
-    if (selectedSolicitud && contenido.trim()) {
+    if (selectedSolicitud && selectedSolicitud.estado !== 'Aceptada' && selectedSolicitud.estado !== 'Rechazada' && contenido.trim()) {
       sendMessage(selectedSolicitud.id, contenido);
     }
   };
@@ -248,7 +248,7 @@ const UserPortal = () => {
   const handleIncidenciasClick = () => {
     Swal.fire({
       title: 'Incidencias',
-      text: 'Contacta con soporte en support@perezllorca.com',
+      text: 'Contacta con soporte en exencionesTR@perezllorca.com',
       icon: 'info',
       confirmButtonText: 'Cerrar'
     });

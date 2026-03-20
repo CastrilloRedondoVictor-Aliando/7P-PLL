@@ -114,6 +114,34 @@ describe('SolicitudDetail', () => {
     expect(onUploadDocument).toHaveBeenCalledWith(file, 'General');
   });
 
+  it('blocks new documents and messages when solicitud is closed', async () => {
+    const user = userEvent.setup();
+    const onUploadDocument = vi.fn();
+    const onSendMessage = vi.fn();
+
+    render(
+      <SolicitudDetail
+        solicitud={{ ...baseSolicitud, estado: 'Aceptada' }}
+        documentos={[]}
+        mensajes={[]}
+        onUploadDocument={onUploadDocument}
+        onSendMessage={onSendMessage}
+        onUpdateDescripcion={vi.fn()}
+        currentUserId="user-1"
+      />
+    );
+
+    expect(screen.getByText(/no admite nuevos documentos ni mensajes/i)).toBeInTheDocument();
+    const input = screen.getByPlaceholderText(/La solicitud está cerrada y no admite nuevos mensajes/i);
+    expect(input).toBeDisabled();
+
+    await user.type(input, 'Hola');
+    fireEvent.keyPress(input, { key: 'Enter', code: 'Enter', charCode: 13 });
+
+    expect(onUploadDocument).not.toHaveBeenCalled();
+    expect(onSendMessage).not.toHaveBeenCalled();
+  });
+
   it('downloads and deletes documents', async () => {
     const user = userEvent.setup();
     const deleteDocument = vi.fn();
@@ -233,6 +261,22 @@ describe('SolicitudDetail', () => {
     );
 
     expect(screen.getByText('Usuario Mensaje')).toBeInTheDocument();
+  });
+
+  it('shows Pérez-Llorca for admin messages', () => {
+    render(
+      <SolicitudDetail
+        solicitud={{ ...baseSolicitud, usuarioNombre: '' }}
+        documentos={[]}
+        mensajes={[{ id: 'm1', usuarioID: 'admin-1', usuarioNombre: 'Administrador', rol: 'admin', contenido: 'Hola', fechaEnvio: '2026-03-04' }]}
+        onUploadDocument={vi.fn()}
+        onSendMessage={vi.fn()}
+        onUpdateDescripcion={vi.fn()}
+        currentUserId="u1"
+      />
+    );
+
+    expect(screen.getByText('Pérez-Llorca')).toBeInTheDocument();
   });
 
   it('handles download error with alert', async () => {

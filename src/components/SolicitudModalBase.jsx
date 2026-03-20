@@ -20,7 +20,8 @@ const SolicitudModalBase = ({
   requireComments,
   hideRecipientSelector,
   initialData,
-  showPercentageField
+  showPercentageField,
+  showEstadoField
 }) => {
   const toDateInputValue = (value) => {
     if (!value) return '';
@@ -46,6 +47,7 @@ const SolicitudModalBase = ({
   const buildInitialFormData = () => ({
     proyecto: initialData?.proyecto || '',
     comentarios: initialData?.comentarios || '',
+    estado: initialData?.estado || 'Pendiente',
     trayecto: initialData?.trayecto || '',
     destino: initialData?.destino || '',
     fechaInicio: toDateInputValue(initialData?.fechaInicio),
@@ -61,6 +63,7 @@ const SolicitudModalBase = ({
   const [formData, setFormData] = useState({
     proyecto: '',
     comentarios: '',
+    estado: 'Pendiente',
     trayecto: '',
     destino: '',
     fechaInicio: '',
@@ -74,6 +77,7 @@ const SolicitudModalBase = ({
   const [isClosing, setIsClosing] = useState(false);
   const [dateError, setDateError] = useState('');
   const normalizedSubmitLabel = (submitLabel || '').toString().replace(/^\s*\+\s*/, '');
+  const shouldShowPercentageInput = showPercentageField && (!showEstadoField || formData.estado === 'Aceptada');
 
   useEffect(() => {
     if (isOpen) {
@@ -131,7 +135,7 @@ const SolicitudModalBase = ({
       }
     }
 
-    if (showPercentageField && formData.porcentaje !== '') {
+    if (shouldShowPercentageInput && formData.porcentaje !== '') {
       const parsedPorcentaje = Number(formData.porcentaje);
       if (Number.isNaN(parsedPorcentaje) || parsedPorcentaje < 0 || parsedPorcentaje > 100) {
         setDateError('El porcentaje debe estar entre 0 y 100');
@@ -142,13 +146,14 @@ const SolicitudModalBase = ({
     setDateError('');
 
     const baseExtras = {
+      estado: showEstadoField ? formData.estado : undefined,
       trayecto: formData.trayecto,
       destino: formData.destino,
       fechaInicio: formData.fechaInicio,
       fechaFin: formData.fechaFin,
       empresa: formData.empresa,
       horasCodigo: formData.horasCodigo,
-      porcentaje: showPercentageField && formData.porcentaje !== '' ? Number(formData.porcentaje) : undefined
+      porcentaje: shouldShowPercentageInput && formData.porcentaje !== '' ? Number(formData.porcentaje) : undefined
     };
 
     let submitResult;
@@ -183,6 +188,7 @@ const SolicitudModalBase = ({
     setFormData({
       proyecto: '',
       comentarios: '',
+      estado: 'Pendiente',
       trayecto: '',
       destino: '',
       fechaInicio: '',
@@ -333,6 +339,26 @@ const SolicitudModalBase = ({
           <div className="border-t pt-4">
             <h4 className="text-sm font-semibold text-gray-700 mb-3">Campos opcionales</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {showEstadoField && (
+                <div>
+                  <label htmlFor="estado" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Estado
+                  </label>
+                  <select
+                    id="estado"
+                    name="estado"
+                    value={formData.estado}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary bg-white"
+                  >
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="En revisión">En revisión</option>
+                    <option value="Aceptada">Aceptada</option>
+                    <option value="Rechazada">Rechazada</option>
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label htmlFor="trayecto" className="block text-sm font-semibold text-gray-700 mb-2">
                   Trayecto
@@ -408,7 +434,7 @@ const SolicitudModalBase = ({
                 />
               </div>
 
-              {showPercentageField && (
+              {shouldShowPercentageInput && (
                 <div>
                   <label htmlFor="porcentaje" className="block text-sm font-semibold text-gray-700 mb-2">
                     Porcentaje

@@ -5,19 +5,31 @@ import { useAuth } from '../hooks/useAuth';
 const LoginPage = () => {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
+  const backgroundImage = '/images/PLL Bckgrnd 02.jpg';
 
   const handleMicrosoftLogin = async () => {
     setLoading(true);
     try {
       await login();
     } catch (error) {
+      console.error('[LoginPage] Error al iniciar sesión', error);
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 px-4">
-      <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl max-w-md w-full">
+    <div
+      className="relative min-h-screen overflow-hidden px-4"
+      style={{
+        backgroundImage: `url("${backgroundImage}")`,
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: 'cover'
+      }}
+    >
+      <div className="absolute inset-0 bg-slate-950/45" />
+      <div className="relative z-10 flex min-h-screen items-center justify-center py-8 sm:py-12">
+      <div className="w-full max-w-md rounded-2xl border border-white/30 bg-white/90 p-6 shadow-2xl backdrop-blur-sm sm:p-8">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-full mb-4">
             <LogIn className="w-8 h-8 text-white" />
@@ -60,6 +72,7 @@ const LoginPage = () => {
             </p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

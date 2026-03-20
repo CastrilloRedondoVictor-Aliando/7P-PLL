@@ -30,10 +30,13 @@ const SolicitudDetail = ({
   const estadoColors = getEstadoColor(solicitud.estado);
   const shouldShowPercentage = !isUserView || solicitud.estado === 'Aceptada';
   const isViewRole = user?.rol === 'view';
+  const isFlightsCategory = (categoria) => categoria === 'Vuelos y visados' || categoria === 'Vuelos';
+  const isSolicitudClosed = solicitud.estado === 'Aceptada' || solicitud.estado === 'Rechazada';
+  const closedInteractionMessage = 'Esta solicitud ya está cerrada y no admite nuevos documentos ni mensajes';
 
   const categorias = [
     { value: 'General', label: 'Principales funciones' },
-    { value: 'Vuelos', label: 'Vuelos' },
+    { value: 'Vuelos y visados', label: 'Vuelos y visados' },
     { value: 'Hoteles', label: 'Hoteles' }
   ];
 
@@ -85,6 +88,7 @@ const SolicitudDetail = ({
 
 
   const handleFileSelect = (files) => {
+    if (isSolicitudClosed) return;
     if (files && files.length > 0) {
       const newFiles = Array.from(files).map(file => ({
         file,
@@ -95,6 +99,10 @@ const SolicitudDetail = ({
   };
 
   const handleFileUpload = (e) => {
+    if (isSolicitudClosed) {
+      e.target.value = '';
+      return;
+    }
     const files = e.target.files;
     if (files && files.length > 0) {
       handleFileSelect(files);
@@ -103,18 +111,21 @@ const SolicitudDetail = ({
   };
 
   const handleDragOver = (e) => {
+    if (isSolicitudClosed) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
   };
 
   const handleDragLeave = (e) => {
+    if (isSolicitudClosed) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
   };
 
   const handleDrop = (e) => {
+    if (isSolicitudClosed) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
@@ -126,7 +137,7 @@ const SolicitudDetail = ({
   };
 
   const confirmUpload = async () => {
-    if (pendingFiles.length === 0 || isUploadingDocuments) return;
+    if (isSolicitudClosed || pendingFiles.length === 0 || isUploadingDocuments) return;
 
     setIsUploadingDocuments(true);
 
@@ -188,6 +199,7 @@ const SolicitudDetail = ({
   };
 
   const handleSendMessage = () => {
+    if (isSolicitudClosed) return;
     if (newMessage.trim()) {
       onSendMessage(newMessage);
       setNewMessage('');
@@ -200,6 +212,14 @@ const SolicitudDetail = ({
     const userMessage = mensajes.find(m => m.usuarioID === userId && m.usuarioNombre);
     if (userMessage?.usuarioNombre) return userMessage.usuarioNombre;
     return solicitud?.usuarioNombre || solicitud?.usuarioEmail || 'Usuario desconocido';
+  };
+
+  const getMessageSenderName = (mensaje) => {
+    if (mensaje?.rol === 'admin') {
+      return 'Pérez-Llorca';
+    }
+
+    return getUserName(mensaje?.usuarioID);
   };
 
   const handleEditDescripcion = () => {
@@ -425,7 +445,11 @@ const SolicitudDetail = ({
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Documentos</h3>
 
           {/* Zona de drag and drop */}
-          {pendingFiles.length === 0 ? (
+          {isSolicitudClosed ? (
+            <div className="border border-gray-200 rounded-lg p-4 mb-3 bg-gray-50 text-sm text-gray-600">
+              {closedInteractionMessage}.
+            </div>
+          ) : pendingFiles.length === 0 ? (
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -539,6 +563,7 @@ const SolicitudDetail = ({
             className="hidden"
             accept="*"
             multiple
+            disabled={isSolicitudClosed}
           />
 
           {/* Secciones de documentos por categoría */}
@@ -600,22 +625,22 @@ const SolicitudDetail = ({
               </div>
             </div>
 
-            {/* Vuelos */}
+            {/* Vuelos y visados */}
             <div>
               <div className="flex items-center space-x-2 mb-3">
                 <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
-                <h4 className="text-md font-semibold text-gray-900">Vuelos</h4>
+                <h4 className="text-md font-semibold text-gray-900">Vuelos y visados</h4>
               </div>
               <div className="space-y-2">
-                {documentos.filter(doc => doc.categoria === 'Vuelos').length === 0 ? (
+                {documentos.filter(doc => isFlightsCategory(doc.categoria)).length === 0 ? (
                   <p className="text-gray-500 text-sm py-2 pl-7">
                     No hay documentos en esta categoría
                   </p>
                 ) : (
                   documentos
-                    .filter(doc => doc.categoria === 'Vuelos')
+                    .filter(doc => isFlightsCategory(doc.categoria))
                     .map(doc => (
                       <div
                         key={doc.id}
@@ -752,7 +777,7 @@ const SolicitudDetail = ({
                       <p className={`text-xs font-semibold mb-1 ${
                         isCurrentUser ? 'text-blue-200' : 'text-gray-600'
                       }`}>
-                        {getUserName(mensaje.usuarioID)}
+                        {getMessageSenderName(mensaje)}
                       </p>
                       <p className="text-sm">{mensaje.contenido}</p>
                       <p className={`text-xs mt-1 ${
@@ -774,12 +799,13 @@ const SolicitudDetail = ({
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder={isViewRole ? 'Debes ser administrador para poder enviar mensajes' : 'Escribe un mensaje...'}
-              className="flex-1 px-4 py-2 text-xs sm:text-base border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+              placeholder={isViewRole ? 'Debes ser administrador para poder enviar mensajes' : isSolicitudClosed ? 'La solicitud está cerrada y no admite nuevos mensajes' : 'Escribe un mensaje...'}
+              disabled={isViewRole || isSolicitudClosed}
+              className="flex-1 px-4 py-2 text-xs sm:text-base border border-gray-200 rounded-lg focus:outline-none focus:border-primary disabled:bg-gray-100 disabled:text-gray-500"
             />
             <button
               onClick={handleSendMessage}
-              disabled={!newMessage.trim()}
+              disabled={!newMessage.trim() || isViewRole || isSolicitudClosed}
               className={`bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed ${
                 isSendBouncing ? 'animate-bounce-once' : ''
               }`}

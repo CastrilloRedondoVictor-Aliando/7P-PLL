@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown, Upload, Menu, Plane, UserPlus, UserMinus, X } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown, Upload, Menu, Plane, X } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import JSZip from 'jszip';
 import Swal from 'sweetalert2';
@@ -10,9 +10,8 @@ import CreateSolicitudModal from '../components/CreateSolicitudModal';
 import EditSolicitudModal from '../components/EditSolicitudModal';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudCompleta, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken, authorizedUsers, isLoadingAuthorizedUsers, loadAuthorizedUsers, addAuthorizedUser, removeAuthorizedUser, importAuthorizedUsersFromFile } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudCompleta, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken } = useAuth();
   const isViewRole = user?.rol === 'view';
-  const isAdminRole = user?.rol === 'admin';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterFecha, setFilterFecha] = useState('');
@@ -20,8 +19,6 @@ const AdminDashboard = () => {
   const [newMessage, setNewMessage] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [availableUsers, setAvailableUsers] = useState([]);
-  const [isLoadingAvailableUsers, setIsLoadingAvailableUsers] = useState(false);
   const [showMessagesDropdown, setShowMessagesDropdown] = useState(false);
   const [showDocsDropdown, setShowDocsDropdown] = useState(false);
   const messagesContainerRef = useRef(null);
@@ -36,12 +33,6 @@ const AdminDashboard = () => {
   const [showLoadingScreen, setShowLoadingScreen] = useState(loading);
   const [isLoadingClosing, setIsLoadingClosing] = useState(false);
   const [isDownloadingSolicitud, setIsDownloadingSolicitud] = useState(false);
-  const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
-  const [authorizedEmailInput, setAuthorizedEmailInput] = useState('');
-  const [importFile, setImportFile] = useState(null);
-  const [isImportingAuthorizedUsers, setIsImportingAuthorizedUsers] = useState(false);
-  const [isSubmittingAuthorizedEmail, setIsSubmittingAuthorizedEmail] = useState(false);
-  const [isRemovingAuthorizedUserId, setIsRemovingAuthorizedUserId] = useState(null);
   const messagesButtonRef = useRef(null);
   const mobileMessagesButtonRef = useRef(null);
   const messagesDropdownRef = useRef(null);
@@ -116,12 +107,6 @@ const AdminDashboard = () => {
     completadas: solicitudes.filter(s => s.estado === 'Aceptada').length,
     rechazadas: solicitudes.filter(s => s.estado === 'Rechazada').length,
   };
-
-  const filteredAuthorizedUsers = (authorizedUsers || []).filter((authorizedUser) => {
-    const searchValue = searchTerm.toLowerCase();
-    if (!searchValue) return true;
-    return (authorizedUser?.email || '').toLowerCase().includes(searchValue);
-  });
 
   const getProyectoDisplayName = (proyecto) => {
     const normalized = proyecto?.toString().trim();
@@ -249,6 +234,14 @@ const AdminDashboard = () => {
     return mensaje?.usuarioNombre || 'Usuario desconocido';
   };
 
+  const getMessageSenderName = (mensaje) => {
+    if (mensaje?.rol === 'admin') {
+      return 'Pérez-Llorca';
+    }
+
+    return getUserName(mensaje?.usuarioID);
+  };
+
   const solicitudDocumentos = selectedSolicitud
     ? documentos.filter(d => d.solicitudID === selectedSolicitud.id)
     : [];
@@ -256,6 +249,12 @@ const AdminDashboard = () => {
   const solicitudMensajes = selectedSolicitud
     ? mensajes.filter(m => m.solicitudID === selectedSolicitud.id)
     : [];
+  const isSelectedSolicitudClosed = selectedSolicitud?.estado === 'Aceptada' || selectedSolicitud?.estado === 'Rechazada';
+
+  const getDocumentUploadDateLabel = (doc) => {
+    const uploadDate = doc.createdAt || doc.fechaCarga;
+    return uploadDate ? `Subido: ${formatDate(uploadDate)}` : 'Fecha no disponible';
+  };
 
   useLayoutEffect(() => {
     if (!messagesContainerRef.current) return;
@@ -271,6 +270,21 @@ const AdminDashboard = () => {
       markMessagesAsRead(selectedSolicitud.id);
     }
   }, [selectedSolicitud, markMessagesAsRead]);
+
+  useEffect(() => {
+    if (!selectedSolicitud) return;
+
+    const updatedSelectedSolicitud = solicitudes.find(solicitud => solicitud.id === selectedSolicitud.id);
+
+    if (!updatedSelectedSolicitud) {
+      setSelectedSolicitud(null);
+      return;
+    }
+
+    if (updatedSelectedSolicitud !== selectedSolicitud) {
+      setSelectedSolicitud(updatedSelectedSolicitud);
+    }
+  }, [selectedSolicitud, solicitudes]);
 
   useEffect(() => {
     const joinAllGroups = async () => {
@@ -474,137 +488,9 @@ const AdminDashboard = () => {
     });
   };
 
-  useEffect(() => {
-    const loadAvailableUsers = async () => {
-      if (!isCreateModalOpen) return;
-      try {
-        setIsLoadingAvailableUsers(true);
-        const users = await loadAuthorizedUsers();
-        setAvailableUsers(Array.isArray(users) ? users.map((item) => ({ ...item, nombre: item.email })) : []);
-      } catch (error) {
-        setAvailableUsers([]);
-      } finally {
-        setIsLoadingAvailableUsers(false);
-      }
-    };
-
-    loadAvailableUsers();
-  }, [isCreateModalOpen, loadAuthorizedUsers]);
-
-  useEffect(() => {
-    if (!isAdminRole && !isViewRole) return;
-    loadAuthorizedUsers();
-  }, [isAdminRole, isViewRole, loadAuthorizedUsers]);
-
-  const handleAddAuthorizedEmail = async () => {
-    const normalizedEmail = (authorizedEmailInput || '').toString().trim().toLowerCase();
-    if (!normalizedEmail) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Email requerido',
-        text: 'Introduce un correo para autorizar acceso.',
-        confirmButtonColor: '#1e40af'
-      });
-      return;
-    }
-
-    try {
-      setIsSubmittingAuthorizedEmail(true);
-      await addAuthorizedUser(normalizedEmail);
-      setAuthorizedEmailInput('');
-      Swal.fire({
-        icon: 'success',
-        title: 'Correo autorizado',
-        text: `${normalizedEmail} ya puede entrar en la aplicación.`,
-        timer: 2200,
-        showConfirmButton: false
-      });
-    } catch (error) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error?.message || 'No se pudo autorizar el correo.',
-        confirmButtonColor: '#1e40af'
-      });
-    } finally {
-      setIsSubmittingAuthorizedEmail(false);
-    }
-  };
-
-  const handleRemoveAuthorizedEmail = async (row) => {
-    if (!row?.id) return;
-
-    const result = await Swal.fire({
-      title: '¿Eliminar acceso?',
-      text: `Se quitará el acceso a ${row.email}`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#dc2626',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Eliminar',
-      cancelButtonText: 'Cancelar'
-    });
-
-    if (!result.isConfirmed) return;
-
-    try {
-      setIsRemovingAuthorizedUserId(row.id);
-      await removeAuthorizedUser(row.id);
-      Swal.fire({
-        icon: 'success',
-        title: 'Acceso eliminado',
-        text: `${row.email} ya no puede acceder.`,
-        timer: 2200,
-        showConfirmButton: false
-      });
-    } catch (error) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error?.message || 'No se pudo eliminar el acceso.',
-        confirmButtonColor: '#1e40af'
-      });
-    } finally {
-      setIsRemovingAuthorizedUserId(null);
-    }
-  };
-
-  const handleImportAuthorizedUsers = async () => {
-    if (!importFile) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Archivo requerido',
-        text: 'Selecciona un archivo de texto para importar correos.',
-        confirmButtonColor: '#1e40af'
-      });
-      return;
-    }
-
-    try {
-      setIsImportingAuthorizedUsers(true);
-      const result = await importAuthorizedUsersFromFile(importFile);
-      const summary = result?.summary || {};
-      Swal.fire({
-        icon: 'success',
-        title: 'Importación completada',
-        text: `Detectados: ${summary.detected || 0}. Añadidos: ${summary.inserted || 0}. Ya existentes: ${summary.alreadyExists || 0}.`,
-        confirmButtonColor: '#1e40af'
-      });
-      setImportFile(null);
-    } catch (error) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error?.message || 'No se pudo importar el archivo.',
-        confirmButtonColor: '#1e40af'
-      });
-    } finally {
-      setIsImportingAuthorizedUsers(false);
-    }
-  };
-
   const handleSendMessage = () => {
     if (isViewRole) return;
+    if (isSelectedSolicitudClosed) return;
     if (selectedSolicitud && newMessage.trim()) {
       sendMessage(selectedSolicitud.id, newMessage);
       setNewMessage('');
@@ -681,6 +567,7 @@ const AdminDashboard = () => {
     const payload = {
       proyecto: data.proyecto,
       descripcion: data.comentarios,
+      estado: data.estado || selectedSolicitud.estado,
       trayecto: data.trayecto,
       destino: data.destino,
       fechaInicio: data.fechaInicio,
@@ -748,8 +635,11 @@ const AdminDashboard = () => {
           ? `
             <div style="width:100%;height:60vh;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
               <iframe src="${previewSrc}" title="Previsualizacion" style="width:100%;height:100%;border:0;"></iframe>
-            </div>
-            <p style="margin-top:10px;font-size:14px;color:#6b7280;">Si no puedes ver la previsualizacion, usa el boton Descargar.</p>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h3 className="text-xl sm:text-2xl font-bold">{getProyectoDisplayName(selectedSolicitud.proyecto)}</h3>
+                      {renderEstadoSelector(selectedSolicitud)}
+                    </div>
           `
           : `
             <div style="padding:18px;border-radius:10px;border:1px solid #e5e7eb;background:#f8fafc;">
@@ -789,7 +679,6 @@ const AdminDashboard = () => {
     const infoRows = [
       ['Proyecto', getProyectoDisplayName(solicitud.proyecto)],
       ['Usuario', getUserName(solicitud.usuarioID)],
-      ['Usuario email', solicitud.usuarioEmail || ''],
       ['Estado', solicitud.estado || ''],
       ['Porcentaje', solicitud.porcentaje ?? 0],
       ['Trayecto', solicitud.trayecto || ''],
@@ -1277,7 +1166,7 @@ const AdminDashboard = () => {
         }
       }
 
-      const title = createdCount === 1 ? 'Importacion completada' : 'Importacion no completada';
+      const title = failedCount > 0 ? 'Importacion no completada' : 'Importacion completada';
       const text = failedCount > 0
         ? `Se importaron ${createdCount} solicitudes. ${failedCount} fallaron.`
         : `Se importaron ${createdCount} solicitudes correctamente.`;
@@ -1561,16 +1450,6 @@ const AdminDashboard = () => {
                     onChange={handleImportExcel}
                   />
                 </>
-              )}
-
-              {(isAdminRole || isViewRole) && (
-                <button
-                  onClick={() => setIsUsersModalOpen(true)}
-                  className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-colors flex items-center space-x-2 font-semibold shadow-md w-full sm:w-auto justify-center whitespace-nowrap"
-                >
-                  <UserPlus className="w-5 h-5" />
-                  <span>Gestión Usuarios</span>
-                </button>
               )}
 
               {/* Badge de mensajes no leídos (solo escritorio) */}
@@ -2041,7 +1920,7 @@ const AdminDashboard = () => {
               <div className="bg-primary text-white p-6 relative">
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
                   <div>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:space-x-2">
+                  <div className="flex flex-col gap-2">
                     <h3 className="text-xl sm:text-2xl font-bold">{getProyectoDisplayName(selectedSolicitud.proyecto)}</h3>
                   </div>
                   {!isViewRole && (
@@ -2073,6 +1952,15 @@ const AdminDashboard = () => {
                             <span className="leading-tight text-center">Descargar<br />información</span>
                           </>
                         )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeleteSolicitud}
+                        className="bg-red-600 bg-opacity-90 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold inline-flex items-center justify-center gap-2 w-full shadow-md min-h-[52px]"
+                        title="Eliminar viaje"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span className="leading-tight text-center">Eliminar<br />viaje</span>
                       </button>
                     </div>
                   )}
@@ -2155,6 +2043,15 @@ const AdminDashboard = () => {
                         </>
                       )}
                     </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteSolicitud}
+                      className="bg-red-600 bg-opacity-90 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold inline-flex items-center gap-2 shadow-md"
+                      title="Eliminar viaje"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Eliminar viaje
+                    </button>
                   </div>
                 )}
               </div>
@@ -2184,7 +2081,10 @@ const AdminDashboard = () => {
                           solicitudDocumentos.filter(doc => doc.categoria === 'General').map(doc => (
                             <div key={doc.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                               <div className="flex items-center space-x-2 flex-1 min-w-0">
-                                <span className="text-sm font-normal text-gray-600 truncate">{doc.nombre}</span>
+                                <div className="min-w-0">
+                                  <span className="block text-sm font-normal text-gray-600 truncate">{doc.nombre}</span>
+                                  <span className="block text-xs text-gray-500">{getDocumentUploadDateLabel(doc)}</span>
+                                </div>
                               </div>
                               <div className="flex items-center gap-1">
                                 <button
@@ -2212,22 +2112,25 @@ const AdminDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Vuelos */}
+                    {/* Vuelos y visados */}
                     <div>
                       <div className="flex items-center space-x-2 mb-2">
                         <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
                         </svg>
-                        <h5 className="text-sm font-semibold text-gray-900">Vuelos</h5>
+                        <h5 className="text-sm font-semibold text-gray-900">Vuelos y visados</h5>
                       </div>
                       <div className="space-y-2">
-                        {solicitudDocumentos.filter(doc => doc.categoria === 'Vuelos').length === 0 ? (
+                        {solicitudDocumentos.filter(doc => doc.categoria === 'Vuelos y visados' || doc.categoria === 'Vuelos').length === 0 ? (
                           <p className="text-gray-500 text-xs py-2 pl-7">No hay documentos en esta categoría</p>
                         ) : (
-                          solicitudDocumentos.filter(doc => doc.categoria === 'Vuelos').map(doc => (
+                          solicitudDocumentos.filter(doc => doc.categoria === 'Vuelos y visados' || doc.categoria === 'Vuelos').map(doc => (
                             <div key={doc.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                               <div className="flex items-center space-x-2 flex-1 min-w-0">
-                                <span className="text-sm font-normal text-gray-600 truncate">{doc.nombre}</span>
+                                <div className="min-w-0">
+                                  <span className="block text-sm font-normal text-gray-600 truncate">{doc.nombre}</span>
+                                  <span className="block text-xs text-gray-500">{getDocumentUploadDateLabel(doc)}</span>
+                                </div>
                               </div>
                               <div className="flex items-center gap-1">
                                 <button
@@ -2270,7 +2173,10 @@ const AdminDashboard = () => {
                           solicitudDocumentos.filter(doc => doc.categoria === 'Hoteles').map(doc => (
                             <div key={doc.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                               <div className="flex items-center space-x-2 flex-1 min-w-0">
-                                <span className="text-sm font-normal text-gray-600 truncate">{doc.nombre}</span>
+                                <div className="min-w-0">
+                                  <span className="block text-sm font-normal text-gray-600 truncate">{doc.nombre}</span>
+                                  <span className="block text-xs text-gray-500">{getDocumentUploadDateLabel(doc)}</span>
+                                </div>
                               </div>
                               <div className="flex items-center gap-1">
                                 <button
@@ -2326,7 +2232,7 @@ const AdminDashboard = () => {
                               <p className={`text-xs font-semibold mb-1 ${
                                 isCurrentUser ? 'text-blue-200' : 'text-gray-600'
                               }`}>
-                                {getUserName(mensaje.usuarioID)}
+                                {getMessageSenderName(mensaje)}
                               </p>
                               <p className="text-sm">{mensaje.contenido}</p>
                               <p className={`text-xs mt-1 ${
@@ -2348,13 +2254,13 @@ const AdminDashboard = () => {
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                      placeholder={isViewRole ? 'Debes ser administrador para poder enviar mensajes' : 'Escribe un mensaje...'}
-                      disabled={isViewRole}
+                      placeholder={isViewRole ? 'Debes ser administrador para poder enviar mensajes' : isSelectedSolicitudClosed ? 'La solicitud está cerrada y no admite nuevos mensajes' : 'Escribe un mensaje...'}
+                      disabled={isViewRole || isSelectedSolicitudClosed}
                       className="flex-1 px-4 py-2 text-xs sm:text-base border border-gray-200 rounded-lg focus:outline-none focus:border-primary disabled:bg-gray-100 disabled:text-gray-500"
                     />
                     <button
                       onClick={handleSendMessage}
-                      disabled={!newMessage.trim() || isViewRole}
+                      disabled={!newMessage.trim() || isViewRole || isSelectedSolicitudClosed}
                       className={`bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed ${
                         isSendBouncing ? 'animate-bounce-once' : ''
                       }`}
@@ -2363,147 +2269,18 @@ const AdminDashboard = () => {
                     </button>
                   </div>
                 </div>
-
-                {!isViewRole && (
-                  <div className="pt-4 border-t border-gray-200">
-                    <button
-                      type="button"
-                      onClick={handleDeleteSolicitud}
-                      className="w-4/5 mx-auto block bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                      Eliminar viaje
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </div>
         )}
-
-      {(isAdminRole || isViewRole) && isUsersModalOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 animate-fade-in"
-          onClick={() => setIsUsersModalOpen(false)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl max-w-3xl w-[95vw] sm:w-full max-h-[92vh] overflow-y-auto animate-pop-in"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="relative bg-primary text-white p-4 sm:p-6 pr-14">
-              <div>
-                <h3 className="text-2xl font-bold">Usuarios autorizados</h3>
-                <p className="text-blue-200 text-sm">Solo los correos de esta tabla pueden entrar a la app.</p>
-              </div>
-              <button
-                onClick={() => setIsUsersModalOpen(false)}
-                className="absolute top-3 right-3 sm:top-4 sm:right-4 text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
-                aria-label="Cerrar modal"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-4 sm:p-6">
-              <div className="flex items-center justify-end mb-4">
-                <span className="text-sm font-semibold text-primary">{authorizedUsers.length} correos</span>
-              </div>
-
-              {isAdminRole && (
-                <div className="space-y-3 mb-4">
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <input
-                      type="email"
-                      value={authorizedEmailInput}
-                      onChange={(event) => setAuthorizedEmailInput(event.target.value)}
-                      placeholder="correo@dominio.com"
-                      className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddAuthorizedEmail}
-                      disabled={isSubmittingAuthorizedEmail}
-                      className="bg-primary text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
-                    >
-                      <UserPlus className="w-4 h-4" />
-                      <span>{isSubmittingAuthorizedEmail ? 'Añadiendo...' : 'Añadir correo'}</span>
-                    </button>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <input
-                      type="file"
-                      accept=".txt,.csv,.md,.log,.rtf,.doc,.docx,.text"
-                      onChange={(event) => setImportFile(event.target.files?.[0] || null)}
-                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleImportAuthorizedUsers}
-                      disabled={isImportingAuthorizedUsers}
-                      className="bg-primary text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60"
-                    >
-                      {isImportingAuthorizedUsers ? 'Importando...' : 'Importar archivo'}
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500">Formatos soportados: txt, csv, md, log, rtf, doc y docx.</p>
-                </div>
-              )}
-
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Correo</th>
-                      {isAdminRole && (
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Acción</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {isLoadingAuthorizedUsers ? (
-                      <tr>
-                        <td colSpan={isAdminRole ? 2 : 1} className="px-4 py-4 text-sm text-gray-500">Cargando usuarios autorizados...</td>
-                      </tr>
-                    ) : filteredAuthorizedUsers.length === 0 ? (
-                      <tr>
-                        <td colSpan={isAdminRole ? 2 : 1} className="px-4 py-4 text-sm text-gray-500">No hay correos autorizados.</td>
-                      </tr>
-                    ) : (
-                      filteredAuthorizedUsers.map((row) => (
-                        <tr key={row.id}>
-                          <td className="px-4 py-3 text-sm text-gray-900">{row.email}</td>
-                          {isAdminRole && (
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveAuthorizedEmail(row)}
-                                disabled={isRemovingAuthorizedUserId === row.id}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-red-600 hover:bg-red-50 disabled:opacity-60"
-                              >
-                                <UserMinus className="w-4 h-4" />
-                                <span>{isRemovingAuthorizedUserId === row.id ? 'Eliminando...' : 'Quitar'}</span>
-                              </button>
-                            </td>
-                          )}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
 
       {/* Modal de crear solicitud */}
       <CreateSolicitudModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={handleCreateSolicitud}
-        availableUsers={availableUsers}
-        loadingUsers={isLoadingAvailableUsers}
+        availableUsers={[]}
+        loadingUsers={false}
       />
 
       <EditSolicitudModal

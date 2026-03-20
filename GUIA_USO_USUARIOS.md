@@ -63,7 +63,7 @@ El portal se divide en dos areas:
 ## 9. Boton de incidencias
 1. En el menu superior, pulsa el icono de incidencias.
 2. Aparecera un aviso con el correo de soporte.
-3. Contacta a: support@perezllorca.com.
+3. Contacta a: exencionesTR@perezllorca.com.
 
 ## 10. Cerrar sesion
 1. Pulsa el icono de salida en el menu superior.
@@ -75,4 +75,4 @@ El portal se divide en dos areas:
 - Revisa las notificaciones con frecuencia.
 
 ## 12. Soporte
-Si necesitas ayuda adicional, escribe a support@perezllorca.com.
+Si necesitas ayuda adicional, escribe a exencionesTR@perezllorca.com.

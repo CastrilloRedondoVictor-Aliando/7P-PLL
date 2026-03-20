@@ -28,9 +28,6 @@ export const AuthProvider = ({ children }) => {
   const [solicitudes, setSolicitudes] = useState([]);
   const [documentos, setDocumentos] = useState([]);
   const [mensajes, setMensajes] = useState([]);
-  const [authorizedUsers, setAuthorizedUsers] = useState([]);
-  const [isLoadingAuthorizedUsers, setIsLoadingAuthorizedUsers] = useState(false);
-  const [accessDenied, setAccessDenied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isInitializing, setIsInitializing] = useState(true);
   const [isSignalRConnected, setIsSignalRConnected] = useState(false);
@@ -148,18 +145,10 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ token, profile: accountProfile })
       });
       const normalizedUser = normalizeUser(data.user);
-      
-      setAccessDenied(false);
       setUser(normalizedUser);
       
       return true;
     } catch (error) {
-      if (error?.status === 403 && error?.code === 'ACCESS_DENIED') {
-        setAccessDenied(true);
-        setUser(null);
-        return false;
-      }
-
       Swal.fire({
         icon: 'error',
         title: 'Error de autenticación',
@@ -296,12 +285,10 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       setUser(null);
-      setAccessDenied(false);
       await instance.logoutRedirect();
     } catch (error) {
       // Forzar limpieza aunque falle MSAL
       setUser(null);
-      setAccessDenied(false);
       sessionStorage.removeItem('user');
     }
   };
@@ -340,9 +327,9 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       if (!silent) {
         Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'No se pudo subir el documento',
+          icon: error?.status === 409 ? 'warning' : 'error',
+          title: error?.status === 409 ? 'Accion no permitida' : 'Error',
+          text: error?.message || 'No se pudo subir el documento',
           confirmButtonColor: '#1e40af'
         });
       }
@@ -431,9 +418,9 @@ export const AuthProvider = ({ children }) => {
       return data;
     } catch (error) {
       Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'No se pudo enviar el mensaje',
+        icon: error?.status === 409 ? 'warning' : 'error',
+        title: error?.status === 409 ? 'Accion no permitida' : 'Error',
+        text: error?.message || 'No se pudo enviar el mensaje',
         confirmButtonColor: '#1e40af'
       });
       throw error;
@@ -662,91 +649,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loadAuthorizedUsers = useCallback(async () => {
-    if (user?.rol !== 'admin' && user?.rol !== 'view') {
-      return [];
-    }
-    try {
-      setIsLoadingAuthorizedUsers(true);
-      const token = await getAccessToken();
-      const data = await apiRequest('/auth/users', { token });
-      const rows = Array.isArray(data?.users) ? data.users : [];
-      setAuthorizedUsers(rows);
-      return rows;
-    } catch (error) {
-      setAuthorizedUsers([]);
-      return [];
-    } finally {
-      setIsLoadingAuthorizedUsers(false);
-    }
-  }, [getAccessToken, user?.rol]);
-
-  const addAuthorizedUser = useCallback(async (email) => {
-    if (user?.rol !== 'admin') {
-      throw new Error('No autorizado');
-    }
-
-    const token = await getAccessToken();
-    const data = await apiRequest('/auth/users', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-      token
-    });
-
-    const created = data?.user;
-    if (created) {
-      setAuthorizedUsers((prev) => {
-        const exists = prev.some((item) => item.id === created.id);
-        if (exists) return prev;
-        return [...prev, created].sort((a, b) => (a.email || '').localeCompare(b.email || ''));
-      });
-    }
-
-    return created;
-  }, [getAccessToken, user?.rol]);
-
-  const removeAuthorizedUser = useCallback(async (id) => {
-    if (user?.rol !== 'admin') {
-      throw new Error('No autorizado');
-    }
-
-    const token = await getAccessToken();
-    const data = await apiRequest(`/auth/users/${id}`, {
-      method: 'DELETE',
-      token
-    });
-
-    const removed = data?.user;
-    if (removed) {
-      setAuthorizedUsers((prev) => prev.filter((item) => item.id !== removed.id));
-    }
-
-    return removed;
-  }, [getAccessToken, user?.rol]);
-
-  const importAuthorizedUsersFromFile = useCallback(async (file) => {
-    if (user?.rol !== 'admin') {
-      throw new Error('No autorizado');
-    }
-
-    if (!file) {
-      throw new Error('Archivo requerido');
-    }
-
-    const token = await getAccessToken();
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const data = await apiRequest('/auth/users/import', {
-      method: 'POST',
-      body: formData,
-      token
-    });
-
-    await loadAuthorizedUsers();
-    return data;
-  }, [getAccessToken, loadAuthorizedUsers, user?.rol]);
-
   const updateSolicitudTitulo = async (solicitudID, nuevoTitulo) => {
     const solicitudActual = solicitudes.find(s => s.id === solicitudID);
     
@@ -865,6 +767,7 @@ export const AuthProvider = ({ children }) => {
       const payload = {
         proyecto: updates.proyecto,
         descripcion: updates.descripcion,
+        estado: updates.estado,
         trayecto: normalizeNullableText(updates.trayecto),
         destino: normalizeNullableText(updates.destino),
         fechaInicio: updates.fechaInicio || null,
@@ -922,9 +825,6 @@ export const AuthProvider = ({ children }) => {
     solicitudes,
     documentos,
     mensajes,
-    authorizedUsers,
-    isLoadingAuthorizedUsers,
-    accessDenied,
     loading,
     isSignalRConnected,
     signalRConnection: connectionRef.current,
@@ -946,10 +846,6 @@ export const AuthProvider = ({ children }) => {
     markDocsAsViewed,
     loadData,
     resolveUsersByEmails,
-    loadAuthorizedUsers,
-    addAuthorizedUser,
-    removeAuthorizedUser,
-    importAuthorizedUsersFromFile,
     handleLoginSuccess,
     isInitializing
   };

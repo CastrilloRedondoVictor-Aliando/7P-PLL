@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminDashboard from '../pages/AdminDashboard';
 import * as XLSX from 'xlsx-js-style';
+import { formatDate } from '../utils/helpers';
 
 const mockUseAuth = vi.fn();
 const mockApiRequest = vi.fn();
@@ -17,6 +18,7 @@ let mockCreatePayload = {
 let mockEditPayload = {
   proyecto: 'Proyecto Editado',
   comentarios: 'Comentario editado',
+  estado: 'Rechazada',
   trayecto: 'Madrid - Estambul / Estambul - Madrid',
   destino: 'Estambul',
   fechaInicio: '2026-03-04',
@@ -71,7 +73,7 @@ vi.mock('xlsx-js-style', () => ({
   utils: {
     json_to_sheet: vi.fn(() => ({ '!ref': 'A1:A1', A1: { v: 'Header' } })),
     decode_range: vi.fn(() => ({ s: { r: 0, c: 0 }, e: { r: 0, c: 0 } })),
-    encode_cell: vi.fn(({ r, c }) => `${String.fromCharCode(65 + c)}${r + 1}`),
+    encode_cell: vi.fn(({ r, c }) => `${String.fromCodePoint(65 + c)}${r + 1}`),
     book_new: vi.fn(() => ({})),
     book_append_sheet: vi.fn(),
     sheet_to_json: vi.fn(() => [])
@@ -110,7 +112,7 @@ const baseAuthState = {
   user: { id: 'admin-1', rol: 'admin', name: 'Admin', email: 'admin@empresa.com' },
   solicitudes: baseSolicitudes,
   documentos: [
-    { id: 'd1', solicitudID: 2, categoria: 'General', nombre: 'doc1.pdf', vistoPorAdmin: false }
+    { id: 'd1', solicitudID: 2, categoria: 'General', nombre: 'doc1.pdf', vistoPorAdmin: false, fechaCarga: '2026-03-06T10:00:00.000Z' }
   ],
   mensajes: [
     { id: 'm1', solicitudID: 2, usuarioID: 'u2', contenido: 'Hola', rol: 'user', leidoPorAdmin: false, fechaEnvio: '2026-03-04' }
@@ -151,6 +153,7 @@ describe('AdminDashboard', () => {
     mockEditPayload = {
       proyecto: 'Proyecto Editado',
       comentarios: 'Comentario editado',
+      estado: 'Rechazada',
       trayecto: 'Madrid - Estambul / Estambul - Madrid',
       destino: 'Estambul',
       fechaInicio: '2026-03-04',
@@ -175,19 +178,34 @@ describe('AdminDashboard', () => {
 
   it('filters solicitudes by estado and sends messages', async () => {
     const user = userEvent.setup();
-    const { container } = render(<AdminDashboard />);
+    render(<AdminDashboard />);
 
-    await user.click(screen.getAllByRole('button', { name: /Solicitudes Aceptadas/i })[0]);
-    expect(screen.queryByText('Proyecto Pendiente')).not.toBeInTheDocument();
+    const pendingCells = screen.getAllByText('Proyecto Pendiente');
+    const pendingCell = pendingCells.find((cell) => cell.closest('tr'));
+    const row = pendingCell?.closest('tr');
+    expect(row).toBeTruthy();
+    await user.click(row);
 
-    const row = container.querySelector('tbody tr');
-    if (row) {
-      await user.click(row);
-    }
     const messageInput = screen.getByPlaceholderText(/Escribe un mensaje/);
     await user.type(messageInput, 'Mensaje admin');
     fireEvent.keyPress(messageInput, { key: 'Enter', code: 'Enter', charCode: 13 });
     expect(baseAuthState.sendMessage).toHaveBeenCalled();
+  });
+
+  it('blocks messages from the detail when solicitud is accepted', async () => {
+    const user = userEvent.setup();
+    render(<AdminDashboard />);
+
+    const acceptedCells = screen.getAllByText('Proyecto Aceptado');
+    const acceptedCell = acceptedCells.find((cell) => cell.closest('tr'));
+    const row = acceptedCell?.closest('tr');
+    expect(row).toBeTruthy();
+
+    await user.click(row);
+
+    const messageInput = screen.getByPlaceholderText(/La solicitud está cerrada y no admite nuevos mensajes/i);
+    expect(messageInput).toBeDisabled();
+    expect(baseAuthState.sendMessage).not.toHaveBeenCalled();
   });
 
   it('changes estado to Aceptada with porcentaje', async () => {
@@ -209,6 +227,39 @@ describe('AdminDashboard', () => {
     expect(baseAuthState.updateSolicitudEstado).toHaveBeenCalledWith(1, 'Aceptada', 50);
   });
 
+  it('changes estado from edit modal', async () => {
+    const user = userEvent.setup();
+    render(<AdminDashboard />);
+
+    const acceptedCells = screen.getAllByText('Proyecto Aceptado');
+    const acceptedCell = acceptedCells.find((cell) => cell.closest('tr'));
+    const row = acceptedCell?.closest('tr');
+    expect(row).toBeTruthy();
+
+    await user.click(row);
+    const editButtons = screen.getAllByRole('button', { name: /Editar información/i });
+    await user.click(editButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Mock Save Edit' }));
+
+    expect(baseAuthState.updateSolicitudCompleta).toHaveBeenCalledWith(2, expect.objectContaining({
+      estado: 'Rechazada'
+    }));
+  });
+
+  it('shows upload date for documents in the detail panel', async () => {
+    render(<AdminDashboard />);
+
+    const acceptedCells = screen.getAllByText('Proyecto Aceptado');
+    const acceptedCell = acceptedCells.find((cell) => cell.closest('tr'));
+    const row = acceptedCell?.closest('tr');
+    expect(row).toBeTruthy();
+
+    await userEvent.click(row);
+
+    expect(await screen.findByText('doc1.pdf')).toBeInTheDocument();
+    expect(screen.getByText(`Subido: ${formatDate('2026-03-06T10:00:00.000Z')}`)).toBeInTheDocument();
+  });
+
   it('opens full edit flow and submits solicitud updates', async () => {
     const user = userEvent.setup();
     const { container } = render(<AdminDashboard />);
@@ -226,6 +277,7 @@ describe('AdminDashboard', () => {
     expect(baseAuthState.updateSolicitudCompleta).toHaveBeenCalledWith(2, expect.objectContaining({
       proyecto: 'Proyecto Editado',
       descripcion: 'Comentario editado',
+      estado: 'Rechazada',
       trayecto: 'Madrid - Estambul / Estambul - Madrid',
       destino: 'Estambul',
       porcentaje: 80
@@ -248,7 +300,6 @@ describe('AdminDashboard', () => {
   });
 
   it('imports excel rows and updates estado', async () => {
-    const user = userEvent.setup();
     XLSX.utils.sheet_to_json.mockReturnValue([
       {
         'Correo electrónico': 'import@empresa.com',

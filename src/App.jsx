@@ -5,11 +5,10 @@ import { hasApiScope } from './config/msalConfig';
 import LoginPage from './pages/LoginPage';
 import UserPortal from './pages/UserPortal';
 import AdminDashboard from './pages/AdminDashboard';
-import AccessDeniedPage from './pages/AccessDeniedPage';
 import './App.css';
 
 function App() {
-  const { user, accessDenied, isInitializing, handleLoginSuccess } = useAuth();
+  const { user, isInitializing, handleLoginSuccess } = useAuth();
   const { instance } = useMsal();
   const isAuthenticated = useIsAuthenticated();
   const [isProcessingCallback, setIsProcessingCallback] = useState(true);
@@ -109,9 +108,6 @@ function App() {
 
   // Si no hay usuario autenticado, mostrar login
   if (!user || !isAuthenticated) {
-    if (isAuthenticated && accessDenied) {
-      return <AccessDeniedPage />;
-    }
     return <LoginPage />;
   }
 

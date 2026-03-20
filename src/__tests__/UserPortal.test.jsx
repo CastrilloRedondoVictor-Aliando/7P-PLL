@@ -126,6 +126,32 @@ describe('UserPortal', () => {
     expect(baseAuthState.updateSolicitudDescripcion).toHaveBeenCalledWith(1, 'Nueva descripcion');
   });
 
+  it('does not upload or send messages for closed solicitudes', async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({
+      ...baseAuthState,
+      solicitudes: [
+        {
+          id: 1,
+          usuarioID: 'u1',
+          proyecto: 'Proyecto Cerrado',
+          comentarios: 'Detalle',
+          estado: 'Aceptada',
+          fechaCreacion: '2026-03-04'
+        }
+      ]
+    });
+
+    render(<UserPortal />);
+
+    await user.click(screen.getByText('Proyecto Cerrado'));
+    await user.click(screen.getByText('Upload Doc'));
+    await user.click(screen.getByText('Send Msg'));
+
+    expect(baseAuthState.uploadDocument).not.toHaveBeenCalled();
+    expect(baseAuthState.sendMessage).not.toHaveBeenCalled();
+  });
+
   it('opens and closes mobile detail popup', async () => {
     vi.useFakeTimers();
     window.matchMedia.mockImplementation((query) => ({
