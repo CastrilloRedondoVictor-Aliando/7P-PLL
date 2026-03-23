@@ -33,6 +33,8 @@ const AdminDashboard = () => {
   const [showLoadingScreen, setShowLoadingScreen] = useState(loading);
   const [isLoadingClosing, setIsLoadingClosing] = useState(false);
   const [isDownloadingSolicitud, setIsDownloadingSolicitud] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const messagesButtonRef = useRef(null);
   const mobileMessagesButtonRef = useRef(null);
   const messagesDropdownRef = useRef(null);
@@ -393,6 +395,39 @@ const AdminDashboard = () => {
     return () => clearTimeout(timeoutId);
   }, [loading, showLoadingScreen]);
 
+  useEffect(() => {
+    if (!isCreateModalOpen || isViewRole) {
+      return undefined;
+    }
+
+    let ignore = false;
+
+    const loadAvailableUsers = async () => {
+      try {
+        setLoadingUsers(true);
+        const token = await getAccessToken();
+        const data = await apiRequest('/auth/users', { token });
+        if (!ignore) {
+          setAvailableUsers(Array.isArray(data?.users) ? data.users : []);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setAvailableUsers([]);
+        }
+      } finally {
+        if (!ignore) {
+          setLoadingUsers(false);
+        }
+      }
+    };
+
+    loadAvailableUsers();
+
+    return () => {
+      ignore = true;
+    };
+  }, [getAccessToken, isCreateModalOpen, isViewRole]);
+
   const handleLogout = async () => {
     const result = await Swal.fire({
       title: '¿Cerrar sesión?',
@@ -429,11 +464,10 @@ const AdminDashboard = () => {
       return;
     }
 
-    const resolvedUsers = await resolveUsersByEmails(normalizedEmails);
     const usersByEmail = new Map(
-      resolvedUsers
-        .filter(u => u.email)
-        .map(u => [u.email.toLowerCase(), u])
+      availableUsers
+        .filter((availableUser) => availableUser?.email && availableUser?.oid)
+        .map((availableUser) => [availableUser.email.toLowerCase(), availableUser])
     );
 
     const created = [];
@@ -472,7 +506,7 @@ const AdminDashboard = () => {
       ? `Solicitud creada exitosamente para ${created[0]?.usuarioNombre || created[0]?.usuarioEmail || 'el usuario'}`
       : `Se crearon ${createdCount} solicitudes correctamente`;
     const extraInfo = missingCount > 0
-      ? ` ${missingCount} emails no se encontraron en Entra.`
+      ? ` ${missingCount} usuarios ya no estan disponibles en la tabla de usuarios.`
       : '';
     const text = failedCount > 0
       ? `${baseText}. ${failedCount} no se pudieron crear.${extraInfo}`
@@ -2279,8 +2313,8 @@ const AdminDashboard = () => {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={handleCreateSolicitud}
-        availableUsers={[]}
-        loadingUsers={false}
+        availableUsers={availableUsers}
+        loadingUsers={loadingUsers}
       />
 
       <EditSolicitudModal

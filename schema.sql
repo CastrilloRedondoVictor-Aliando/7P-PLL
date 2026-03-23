@@ -1,3 +1,15 @@
+-- Crear tabla de Usuarios
+CREATE TABLE Usuarios (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    email NVARCHAR(255) NOT NULL UNIQUE,
+    entraIdOID NVARCHAR(100) NOT NULL UNIQUE,
+    nombre NVARCHAR(255) NULL,
+    rol NVARCHAR(20) NOT NULL CHECK (rol IN ('admin', 'user', 'view')),
+    tenantId NVARCHAR(100) NULL,
+    createdAt DATETIME2 DEFAULT GETDATE(),
+    updatedAt DATETIME2 DEFAULT GETDATE()
+);
+
 -- Crear tabla de Solicitudes
 CREATE TABLE Solicitudes (
     id INT PRIMARY KEY IDENTITY(1,1),
@@ -43,6 +55,7 @@ CREATE TABLE Mensajes (
 );
 
 -- Crear índices para mejorar el rendimiento
+CREATE INDEX idx_usuarios_rol ON Usuarios(rol);
 CREATE INDEX idx_solicitudes_usuario ON Solicitudes(usuarioOID);
 CREATE INDEX idx_solicitudes_estado ON Solicitudes(estado);
 CREATE INDEX idx_documentos_solicitud ON Documentos(solicitudID);
