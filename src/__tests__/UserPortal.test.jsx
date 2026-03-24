@@ -210,10 +210,12 @@ describe('UserPortal', () => {
     expect(mockApiRequest).not.toHaveBeenCalledWith('/documentos/guia-uso/preview', expect.anything());
     expect(mockSwalFire).toHaveBeenNthCalledWith(1, expect.objectContaining({
       title: 'Informacion',
-      denyButtonText: 'Política'
+      confirmButtonText: 'Guia de uso',
+      denyButtonText: 'Politica',
+      cancelButtonText: 'Cancelar'
     }));
     expect(mockSwalFire).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      title: 'Política',
+      title: 'Politica',
       html: expect.stringContaining('Pol%C3%ADtica%207P%20TR.pdf')
     }));
   });
@@ -221,7 +223,7 @@ describe('UserPortal', () => {
   it('loads guia de uso when selected in document selector', async () => {
     const user = userEvent.setup();
     mockSwalFire
-      .mockResolvedValueOnce({ isConfirmed: true, value: 'guia' })
+      .mockResolvedValueOnce({ isConfirmed: true, isDenied: false })
       .mockResolvedValueOnce({ isConfirmed: false, isDenied: false });
 
     render(<UserPortal />);
