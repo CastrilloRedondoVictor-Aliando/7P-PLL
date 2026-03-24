@@ -27,7 +27,10 @@ const baseSolicitud = {
   fechaInicio: '2026-03-04',
   fechaFin: '2026-03-10',
   comentarios: 'Detalle',
-  empresa: 'Empresa X'
+  empresa: 'Empresa X',
+  codigoEmpleado: '',
+  posicion: '',
+  politica: ''
 };
 
 describe('SolicitudDetail', () => {
@@ -62,6 +65,54 @@ describe('SolicitudDetail', () => {
     expect(screen.getByText(/Principales funciones realizadas/)).toBeInTheDocument();
     expect(screen.getByText(/Destino/)).toBeInTheDocument();
     expect(screen.getByText(/Detalle/)).toBeInTheDocument();
+    expect(screen.queryByText(/Codigo empleado:/i)).not.toBeInTheDocument();
+  });
+
+  it('shows imported metadata only when it has value', () => {
+    render(
+      <SolicitudDetail
+        solicitud={{
+          ...baseSolicitud,
+          codigoEmpleado: '825',
+          posicion: 'Directora corporativo',
+          politica: 'Firmada'
+        }}
+        documentos={[]}
+        mensajes={[]}
+        onUploadDocument={vi.fn()}
+        onSendMessage={vi.fn()}
+        onUpdateDescripcion={vi.fn()}
+        currentUserId="user-1"
+      />
+    );
+
+    expect(screen.getByText(/Codigo empleado: 825/i)).toBeInTheDocument();
+    expect(screen.getByText(/Posicion: Directora corporativo/i)).toBeInTheDocument();
+    expect(screen.getByText(/Politica: Firmada/i)).toBeInTheDocument();
+  });
+
+  it('hides imported metadata in user view', () => {
+    render(
+      <SolicitudDetail
+        solicitud={{
+          ...baseSolicitud,
+          codigoEmpleado: '825',
+          posicion: 'Directora corporativo',
+          politica: 'Firmada'
+        }}
+        documentos={[]}
+        mensajes={[]}
+        onUploadDocument={vi.fn()}
+        onSendMessage={vi.fn()}
+        onUpdateDescripcion={vi.fn()}
+        currentUserId="user-1"
+        isUserView={true}
+      />
+    );
+
+    expect(screen.queryByText(/Codigo empleado:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Posicion:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Politica:/i)).not.toBeInTheDocument();
   });
 
   it('edits and saves descripcion', async () => {

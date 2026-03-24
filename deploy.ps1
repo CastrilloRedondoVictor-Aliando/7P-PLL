@@ -134,6 +134,20 @@ function Get-AzureCliJson {
     $jsonOutput = Get-AzureCliOutput -Arguments ($Arguments + @('--output', 'json'))
     return $jsonOutput | ConvertFrom-Json
 }
+
+function Resolve-FullPath {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $null
+    }
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Path))
+}
  
 function Test-DeploymentZip {
     param([string]$ZipPath)
@@ -142,15 +156,20 @@ function Test-DeploymentZip {
  
     $zip = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
     try {
-        $entries = $zip.Entries | ForEach-Object { $_.FullName.Replace('\\', '/') }
+        $entries = $zip.Entries | ForEach-Object { $_.FullName.Replace('\', '/') }
         $hasPackageJson = $entries -contains 'package.json'
         $hasServerJs = $entries -contains 'server.js'
         $hasDistIndex = $entries -contains 'dist/index.html'
+        $hasExpressDependency = $entries -contains 'node_modules/express/package.json'
         $hasRootIndex = $entries -contains 'index.html'
         $hasSourceFolder = ($entries | Where-Object { $_ -like 'src/*' } | Select-Object -First 1)
  
         if (-not $hasPackageJson -or -not $hasServerJs -or -not $hasDistIndex) {
             throw "Deployment ZIP is invalid. It must contain package.json, server.js, and dist/index.html at the package root."
+        }
+
+        if (-not $hasExpressDependency) {
+            throw "Deployment ZIP is missing runtime dependencies. It must include node_modules/express/package.json because App Service will not install npm packages when WEBSITE_RUN_FROM_PACKAGE=1 and SCM_DO_BUILD_DURING_DEPLOYMENT=false."
         }
  
         if ($hasRootIndex -or $hasSourceFolder) {
@@ -207,7 +226,8 @@ function New-StagedDeploymentPackage {
     param(
         [string]$AppRoot,
         [string]$StagePath,
-        [string]$ZipPath
+        [string]$ZipPath,
+        [string]$WebConfigPath
     )
 
     Write-Host "Preparing frontend deployment package..." -ForegroundColor Cyan
@@ -219,7 +239,13 @@ function New-StagedDeploymentPackage {
     Copy-Item -Recurse -Force (Join-Path $AppRoot 'dist') $StagePath
     Copy-Item -Force (Join-Path $AppRoot 'server.js') $StagePath
     Copy-Item -Force (Join-Path $AppRoot 'package.json') $StagePath
-    Copy-Item -Force (Join-Path $AppRoot 'web.config') $StagePath
+
+    if (Test-Path (Join-Path $AppRoot 'web.config')) {
+        Copy-Item -Force (Join-Path $AppRoot 'web.config') $StagePath
+    }
+    else {
+        Copy-Item -Force $WebConfigPath $StagePath
+    }
 
     if (Test-Path (Join-Path $AppRoot 'package-lock.json')) {
         Copy-Item -Force (Join-Path $AppRoot 'package-lock.json') $StagePath
@@ -243,18 +269,7 @@ Require-Command 'robocopy'
 $SourcePath = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PackageJsonPath = Join-Path $SourcePath 'package.json'
 $SourceWebConfigPath = Join-Path $SourcePath 'web.config'
-$MockZipPath = Join-Path $SourcePath 'mock.zip'
-$FrontendZipPath = Join-Path $SourcePath 'frontend.zip'
-$PreferredZipPath = if ($PackagePath) {
-    $PackagePath
-}
-elseif (Test-Path $MockZipPath) {
-    $MockZipPath
-}
-else {
-    $FrontendZipPath
-}
-$ShouldUseExistingZip = $UseExistingZip -or ((-not $PackagePath) -and (Test-Path $MockZipPath))
+$PreferredZipPath = if ($PackagePath) { Resolve-FullPath $PackagePath } else { Join-Path $SourcePath 'frontend.zip' }
  
 if (-not (Test-Path $PackageJsonPath)) {
     throw "No package.json found in $SourcePath"
@@ -298,7 +313,7 @@ try {
         throw "App Service '$WebAppName' is running on Linux. This deployment package uses web.config + iisnode and only supports Windows App Service."
     }
  
-    if ($ShouldUseExistingZip) {
+    if ($UseExistingZip) {
         if (-not (Test-Path $PreferredZipPath)) {
             throw "Requested deployment ZIP not found: $PreferredZipPath"
         }
@@ -322,7 +337,7 @@ try {
                 throw "Could not locate a frontend app inside $PreferredZipPath. Expected package.json, server.js, web.config, and dist/index.html."
             }
 
-            New-StagedDeploymentPackage -AppRoot $zipAppRoot -StagePath $StagePath -ZipPath $ZipPath
+            New-StagedDeploymentPackage -AppRoot $zipAppRoot -StagePath $StagePath -ZipPath $ZipPath -WebConfigPath $SourceWebConfigPath
             $DeploymentZipPath = $ZipPath
         }
     }
@@ -342,8 +357,8 @@ try {
         if (-not (Test-Path (Join-Path $BuildPath 'dist'))) {
             throw 'dist folder not found after build. Frontend package cannot be created.'
         }
-
-        New-StagedDeploymentPackage -AppRoot $BuildPath -StagePath $StagePath -ZipPath $ZipPath
+ 
+        New-StagedDeploymentPackage -AppRoot $BuildPath -StagePath $StagePath -ZipPath $ZipPath -WebConfigPath $SourceWebConfigPath
         $DeploymentZipPath = $ZipPath
     }
  

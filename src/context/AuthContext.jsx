@@ -543,6 +543,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const token = await getAccessToken();
       const normalizedExtras = {
+        codigoEmpleado: extraFields.codigoEmpleado?.toString().trim() || undefined,
+        posicion: extraFields.posicion?.trim() || undefined,
+        politica: extraFields.politica?.trim() || undefined,
         trayecto: extraFields.trayecto?.trim() || undefined,
         destino: extraFields.destino?.trim() || undefined,
         fechaInicio: extraFields.fechaInicio || undefined,
@@ -768,6 +771,9 @@ export const AuthProvider = ({ children }) => {
         proyecto: updates.proyecto,
         descripcion: updates.descripcion,
         estado: updates.estado,
+        codigoEmpleado: normalizeNullableText(updates.codigoEmpleado),
+        posicion: normalizeNullableText(updates.posicion),
+        politica: normalizeNullableText(updates.politica),
         trayecto: normalizeNullableText(updates.trayecto),
         destino: normalizeNullableText(updates.destino),
         fechaInicio: updates.fechaInicio || null,

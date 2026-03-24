@@ -33,6 +33,9 @@ const SolicitudDetail = ({
   const isFlightsCategory = (categoria) => categoria === 'Vuelos y visados' || categoria === 'Vuelos';
   const isSolicitudClosed = solicitud.estado === 'Aceptada' || solicitud.estado === 'Rechazada';
   const closedInteractionMessage = 'Esta solicitud ya está cerrada y no admite nuevos documentos ni mensajes';
+  const codigoEmpleado = solicitud.codigoEmpleado?.toString().trim();
+  const posicion = solicitud.posicion?.toString().trim();
+  const politica = solicitud.politica?.toString().trim();
 
   const categorias = [
     { value: 'General', label: 'Principales funciones' },
@@ -383,6 +386,13 @@ const SolicitudDetail = ({
                   </span>
                 )}
               </div>
+              {!isUserView && (codigoEmpleado || posicion || politica) && (
+                <div className="flex flex-wrap items-center gap-3">
+                  {codigoEmpleado && <span>Codigo empleado: {codigoEmpleado}</span>}
+                  {posicion && <span>Posicion: {posicion}</span>}
+                  {politica && <span>Politica: {politica}</span>}
+                </div>
+              )}
             </div>
           </div>
           <span className={`px-4 py-2 rounded-full font-semibold ${estadoColors.bg} ${estadoColors.text}`}>

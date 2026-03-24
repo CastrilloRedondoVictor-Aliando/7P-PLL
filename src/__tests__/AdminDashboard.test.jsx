@@ -94,6 +94,9 @@ const baseSolicitudes = [
     proyecto: 'Proyecto Pendiente',
     comentarios: 'Comentario pendiente',
     estado: 'Pendiente',
+    codigoEmpleado: '825',
+    posicion: 'Directora corporativo',
+    politica: 'Firmada',
     fechaCreacion: '2026-03-04'
   },
   {
@@ -190,6 +193,22 @@ describe('AdminDashboard', () => {
     await user.type(messageInput, 'Mensaje admin');
     fireEvent.keyPress(messageInput, { key: 'Enter', code: 'Enter', charCode: 13 });
     expect(baseAuthState.sendMessage).toHaveBeenCalled();
+  });
+
+  it('shows imported metadata in admin detail when present', async () => {
+    const user = userEvent.setup();
+    render(<AdminDashboard />);
+
+    const pendingCells = screen.getAllByText('Proyecto Pendiente');
+    const pendingCell = pendingCells.find((cell) => cell.closest('tr'));
+    const row = pendingCell?.closest('tr');
+    expect(row).toBeTruthy();
+
+    await user.click(row);
+
+    expect(screen.getByText(/Codigo empleado: 825/i)).toBeInTheDocument();
+    expect(screen.getByText(/Posicion: Directora corporativo/i)).toBeInTheDocument();
+    expect(screen.getByText(/Politica: Firmada/i)).toBeInTheDocument();
   });
 
   it('blocks messages from the detail when solicitud is accepted', async () => {
@@ -291,6 +310,13 @@ describe('AdminDashboard', () => {
 
     await user.click(screen.getAllByRole('button', { name: /Exportar Excel/i })[0]);
     expect(XLSX.writeFile).toHaveBeenCalledTimes(1);
+    expect(XLSX.utils.json_to_sheet).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        'Codigo empleado': expect.any(String),
+        Posicion: expect.any(String),
+        Politica: expect.any(String)
+      })
+    ]));
 
     unmount();
     mockUseAuth.mockReturnValue({ ...baseAuthState, solicitudes: [] });
@@ -302,6 +328,9 @@ describe('AdminDashboard', () => {
   it('imports excel rows and updates estado', async () => {
     XLSX.utils.sheet_to_json.mockReturnValue([
       {
+        'codigo empleado': '825',
+        Posición: 'DIRECTORA COPORATIVO',
+        Politica: 'Firmada',
         'Correo electrónico': 'import@empresa.com',
         'Unidad organizativa': '700 - TECHNICAL MANAGEMENT',
         'trayecto completo texto': 'Madrid - Estambul / Estambul - Madrid',
@@ -326,6 +355,9 @@ describe('AdminDashboard', () => {
       expect(proyecto).toBe('');
       expect(comentarios).toBe('');
       expect(extraFields).toMatchObject({
+        codigoEmpleado: '825',
+        posicion: 'DIRECTORA COPORATIVO',
+        politica: 'Firmada',
         trayecto: 'Madrid - Estambul / Estambul - Madrid',
         destino: 'Estambul',
         empresa: '700 - TECHNICAL MANAGEMENT',

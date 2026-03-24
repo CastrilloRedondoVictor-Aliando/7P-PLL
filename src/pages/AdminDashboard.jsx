@@ -602,6 +602,9 @@ const AdminDashboard = () => {
       proyecto: data.proyecto,
       descripcion: data.comentarios,
       estado: data.estado || selectedSolicitud.estado,
+      codigoEmpleado: data.codigoEmpleado,
+      posicion: data.posicion,
+      politica: data.politica,
       trayecto: data.trayecto,
       destino: data.destino,
       fechaInicio: data.fechaInicio,
@@ -715,6 +718,9 @@ const AdminDashboard = () => {
       ['Usuario', getUserName(solicitud.usuarioID)],
       ['Estado', solicitud.estado || ''],
       ['Porcentaje', solicitud.porcentaje ?? 0],
+      ['Codigo empleado', solicitud.codigoEmpleado || ''],
+      ['Posicion', solicitud.posicion || ''],
+      ['Politica', solicitud.politica || ''],
       ['Trayecto', solicitud.trayecto || ''],
       ['Destino', solicitud.destino || ''],
       ['Empresa', solicitud.empresa || solicitud.filial || ''],
@@ -859,6 +865,9 @@ const AdminDashboard = () => {
       Email: sol.usuarioEmail || '',
       Estado: sol.estado || '',
       Porcentaje: sol.porcentaje !== null && sol.porcentaje !== undefined ? sol.porcentaje : 0,
+      'Codigo empleado': sol.codigoEmpleado || '',
+      Posicion: sol.posicion || '',
+      Politica: sol.politica || '',
       Trayecto: sol.trayecto || '',
       Destino: sol.destino || '',
       Empresa: sol.empresa || sol.filial || '',
@@ -1173,6 +1182,9 @@ const AdminDashboard = () => {
           || getRowValueByHeaders(row, ['Destino', 'Pais'])?.toString();
 
         const extraFields = {
+          codigoEmpleado: getRowValueByHeaders(row, ['codigo empleado', 'Codigo empleado', 'Código empleado'])?.toString() || undefined,
+          posicion: getRowValueByHeaders(row, ['Posicion', 'Posición'])?.toString() || undefined,
+          politica: getRowValueByHeaders(row, ['Politica', 'Política'])?.toString() || undefined,
           trayecto: trayectoCompleto ? trayectoCompleto.toString() : undefined,
           destino: destino ? destino.toString() : undefined,
           fechaInicio: parseExcelDate(getRowValueByHeaders(row, ['fecha salida', 'Fecha inicio'])),
@@ -2038,6 +2050,19 @@ const AdminDashboard = () => {
                         Codigo de horas: {selectedSolicitud.horasCodigo?.trim() ? selectedSolicitud.horasCodigo : 'Sin dato'}
                       </span>
                     </div>
+                    {(selectedSolicitud.codigoEmpleado?.toString().trim() || selectedSolicitud.posicion?.toString().trim() || selectedSolicitud.politica?.toString().trim()) && (
+                      <div className="flex flex-wrap items-center gap-3">
+                        {selectedSolicitud.codigoEmpleado?.toString().trim() && (
+                          <span>Codigo empleado: {selectedSolicitud.codigoEmpleado}</span>
+                        )}
+                        {selectedSolicitud.posicion?.toString().trim() && (
+                          <span>Posicion: {selectedSolicitud.posicion}</span>
+                        )}
+                        {selectedSolicitud.politica?.toString().trim() && (
+                          <span>Politica: {selectedSolicitud.politica}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   </div>
                 </div>

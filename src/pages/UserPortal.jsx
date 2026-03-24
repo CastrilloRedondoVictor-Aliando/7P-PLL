@@ -254,57 +254,97 @@ const UserPortal = () => {
     });
   };
 
-  const handleGuiaUsoClick = async () => {
-    try {
-      const token = await getAccessToken();
-      const { url: guiaUsoAbsoluteUrl } = await apiRequest('/documentos/guia-uso/preview', {
-        token
+  const GUIA_USO_URL = 'https://stapp7ppro01.blob.core.windows.net/estaticos/guia_uso_7P_PLL.docx?sp=r&st=2026-03-23T15:36:32Z&se=2026-03-23T23:51:32Z&spr=https&sv=2024-11-04&sr=b&sig=kzidDpegRjWH2cvpXRe4GKW%2BbiJ2zPiPk1XAJyVrDNc%3D';
+  const POLITICAS_URL = 'https://stapp7ppro01.blob.core.windows.net/estaticos/Pol%C3%ADtica%207P%20TR.pdf?sp=r&st=2026-03-23T14:15:02Z&se=2026-03-23T22:30:02Z&spr=https&sv=2024-11-04&sr=b&sig=apv6jw%2FqY8zGGwJHJ9KpQBiH7IBLj1a1K6qXoZ8B40k%3D';
+
+  const openDocumentViewer = async ({ title, absoluteUrl, previewUrl, mobileConfirmText }) => {
+    const isMobileView = window.matchMedia('(max-width: 1023px)').matches;
+
+    if (isMobileView) {
+      const mobileResult = await Swal.fire({
+        title,
+        text: 'En movil el documento se abre en una nueva pestaña para poder usar los controles.',
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: mobileConfirmText,
+        denyButtonText: 'Descargar',
+        cancelButtonText: 'Cerrar',
+        confirmButtonColor: '#1e40af'
       });
 
-      const officePreviewUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(guiaUsoAbsoluteUrl)}&zoom=50`;
-      const isMobileView = window.matchMedia('(max-width: 1023px)').matches;
+      if (mobileResult.isConfirmed) {
+        window.open(previewUrl, '_blank', 'noopener');
+      } else if (mobileResult.isDenied) {
+        window.open(absoluteUrl, '_blank', 'noopener');
+      }
+      return;
+    }
 
-      if (isMobileView) {
-        const mobileResult = await Swal.fire({
+    const result = await Swal.fire({
+      title,
+      html: `
+        <div style="width:100%;height:60vh;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
+          <iframe src="${previewUrl}" title="${title}" style="width:100%;height:100%;border:0;"></iframe>
+        </div>
+        <p style="margin-top:10px;font-size:14px;color:#6b7280;">Si no puedes ver el documento, usa el boton Descargar.</p>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Descargar',
+      cancelButtonText: 'Cerrar',
+      confirmButtonColor: '#1e40af',
+      width: 900
+    });
+
+    if (result.isConfirmed) {
+      window.open(absoluteUrl, '_blank', 'noopener');
+    }
+  };
+
+  const handleGuiaUsoClick = async () => {
+    try {
+      const selectionResult = await Swal.fire({
+        title: 'Informacion',
+        text: 'Selecciona el documento que quieres abrir.',
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: 'Guia de uso',
+        denyButtonText: 'Politica',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#1e40af',
+        denyButtonColor: '#1e40af',
+        cancelButtonColor: '#64748b',
+        customClass: {
+          actions: 'swal-doc-selector-actions',
+          confirmButton: 'swal-doc-selector-primary',
+          denyButton: 'swal-doc-selector-primary',
+          cancelButton: 'swal-doc-selector-cancel'
+        },
+        buttonsStyling: false
+      });
+
+      if (selectionResult.isConfirmed) {
+        const guiaUsoAbsoluteUrl = GUIA_USO_URL;
+        const officePreviewUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(guiaUsoAbsoluteUrl)}&zoom=50`;
+        await openDocumentViewer({
           title: 'Guia de uso',
-          text: 'En movil la guia se abre en una nueva pestaña para poder usar los controles.',
-          showCancelButton: true,
-          showDenyButton: true,
-          confirmButtonText: 'Abrir guia',
-          denyButtonText: 'Descargar',
-          cancelButtonText: 'Cerrar',
-          confirmButtonColor: '#1e40af'
+          absoluteUrl: guiaUsoAbsoluteUrl,
+          previewUrl: officePreviewUrl,
+          mobileConfirmText: 'Abrir guia'
         });
-
-        if (mobileResult.isConfirmed) {
-          window.open(officePreviewUrl, '_blank', 'noopener');
-        } else if (mobileResult.isDenied) {
-          window.open(guiaUsoAbsoluteUrl, '_blank', 'noopener');
-        }
         return;
       }
 
-      const result = await Swal.fire({
-        title: 'Guia de uso',
-        html: `
-          <div style="width:100%;height:60vh;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
-            <iframe src="${officePreviewUrl}" title="Guia de uso" style="width:100%;height:100%;border:0;"></iframe>
-          </div>
-          <p style="margin-top:10px;font-size:14px;color:#6b7280;">Si no puedes ver la guia, usa el boton Descargar.</p>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Descargar',
-        cancelButtonText: 'Cerrar',
-        confirmButtonColor: '#1e40af',
-        width: 900
-      });
-
-      if (result.isConfirmed) {
-        window.open(guiaUsoAbsoluteUrl, '_blank', 'noopener');
+      if (selectionResult.isDenied) {
+        await openDocumentViewer({
+          title: 'Politica',
+          absoluteUrl: POLITICAS_URL,
+          previewUrl: POLITICAS_URL,
+          mobileConfirmText: 'Abrir política'
+        });
       }
     } catch (error) {
       Swal.fire({
-        title: 'No se pudo abrir la guia',
+        title: 'No se pudo abrir el documento',
         text: 'Intentalo de nuevo en unos segundos.',
         icon: 'error',
         confirmButtonText: 'Cerrar',

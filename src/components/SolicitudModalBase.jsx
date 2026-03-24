@@ -48,6 +48,9 @@ const SolicitudModalBase = ({
     proyecto: initialData?.proyecto || '',
     comentarios: initialData?.comentarios || '',
     estado: initialData?.estado || 'Pendiente',
+    codigoEmpleado: initialData?.codigoEmpleado || '',
+    posicion: initialData?.posicion || '',
+    politica: initialData?.politica || '',
     trayecto: initialData?.trayecto || '',
     destino: initialData?.destino || '',
     fechaInicio: toDateInputValue(initialData?.fechaInicio),
@@ -64,6 +67,9 @@ const SolicitudModalBase = ({
     proyecto: '',
     comentarios: '',
     estado: 'Pendiente',
+    codigoEmpleado: '',
+    posicion: '',
+    politica: '',
     trayecto: '',
     destino: '',
     fechaInicio: '',
@@ -147,6 +153,9 @@ const SolicitudModalBase = ({
 
     const baseExtras = {
       estado: showEstadoField ? formData.estado : undefined,
+      codigoEmpleado: formData.codigoEmpleado,
+      posicion: formData.posicion,
+      politica: formData.politica,
       trayecto: formData.trayecto,
       destino: formData.destino,
       fechaInicio: formData.fechaInicio,
@@ -189,6 +198,9 @@ const SolicitudModalBase = ({
       proyecto: '',
       comentarios: '',
       estado: 'Pendiente',
+      codigoEmpleado: '',
+      posicion: '',
+      politica: '',
       trayecto: '',
       destino: '',
       fechaInicio: '',
@@ -358,6 +370,51 @@ const SolicitudModalBase = ({
                   </select>
                 </div>
               )}
+
+              <div>
+                <label htmlFor="codigoEmpleado" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Codigo empleado
+                </label>
+                <input
+                  id="codigoEmpleado"
+                  name="codigoEmpleado"
+                  type="text"
+                  value={formData.codigoEmpleado}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                  placeholder="Ej: 825"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="posicion" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Posicion
+                </label>
+                <input
+                  id="posicion"
+                  name="posicion"
+                  type="text"
+                  value={formData.posicion}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                  placeholder="Ej: Directora corporativo"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="politica" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Politica
+                </label>
+                <input
+                  id="politica"
+                  name="politica"
+                  type="text"
+                  value={formData.politica}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                  placeholder="Ej: Firmada"
+                />
+              </div>
 
               <div>
                 <label htmlFor="trayecto" className="block text-sm font-semibold text-gray-700 mb-2">

@@ -7,6 +7,7 @@ import UserPortal from '../pages/UserPortal';
 
 const mockUseAuth = vi.fn();
 const mockApiRequest = vi.fn();
+const mockSwalFire = vi.fn();
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => mockUseAuth()
@@ -14,6 +15,10 @@ vi.mock('../hooks/useAuth', () => ({
 
 vi.mock('../config/api', () => ({
   apiRequest: (...args) => mockApiRequest(...args)
+}));
+
+vi.mock('sweetalert2', () => ({
+  default: { fire: (...args) => mockSwalFire(...args) }
 }));
 
 vi.mock('../components/SolicitudDetail', () => ({
@@ -82,6 +87,17 @@ describe('UserPortal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseAuth.mockReturnValue(baseAuthState);
+    mockSwalFire.mockResolvedValue({ isConfirmed: false, isDenied: false });
+    window.matchMedia.mockImplementation((query) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }));
   });
 
   afterEach(() => {
@@ -178,5 +194,48 @@ describe('UserPortal', () => {
     expect(screen.queryByText('Close Detail')).not.toBeInTheDocument();
 
     vi.useRealTimers();
+  });
+
+  it('shows document selector and opens politicas pdf', async () => {
+    const user = userEvent.setup();
+    mockSwalFire
+      .mockResolvedValueOnce({ isConfirmed: false, isDenied: true })
+      .mockResolvedValueOnce({ isConfirmed: false, isDenied: false });
+
+    render(<UserPortal />);
+    mockApiRequest.mockClear();
+
+    await user.click(screen.getAllByTitle(/Guia de uso/i)[0]);
+
+    expect(mockApiRequest).not.toHaveBeenCalledWith('/documentos/guia-uso/preview', expect.anything());
+    expect(mockSwalFire).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      title: 'Informacion',
+      denyButtonText: 'Política'
+    }));
+    expect(mockSwalFire).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      title: 'Política',
+      html: expect.stringContaining('Pol%C3%ADtica%207P%20TR.pdf')
+    }));
+  });
+
+  it('loads guia de uso when selected in document selector', async () => {
+    const user = userEvent.setup();
+    mockSwalFire
+      .mockResolvedValueOnce({ isConfirmed: true, value: 'guia' })
+      .mockResolvedValueOnce({ isConfirmed: false, isDenied: false });
+
+    render(<UserPortal />);
+    mockApiRequest.mockClear();
+
+    await user.click(screen.getAllByTitle(/Guia de uso/i)[0]);
+
+    expect(mockApiRequest).not.toHaveBeenCalledWith('/documentos/guia-uso/preview', expect.anything());
+    expect(mockSwalFire).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      title: 'Guia de uso',
+      html: expect.stringContaining('view.officeapps.live.com')
+    }));
+    expect(mockSwalFire).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      html: expect.stringContaining('guia_uso_7P_PLL.docx')
+    }));
   });
 });
