@@ -166,6 +166,41 @@ describe('UserPortal', () => {
     expect(projectButtons[0]).toHaveTextContent('Proyecto Con Documento Nuevo');
   });
 
+  it('keeps ordering by latest uploaded document when filtering by estado', async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({
+      ...baseAuthState,
+      solicitudes: [
+        {
+          id: 1,
+          usuarioID: 'u1',
+          proyecto: 'Pendiente Antiguo',
+          comentarios: 'Detalle',
+          estado: 'Pendiente',
+          fechaCreacion: '2026-03-04T10:00:00.000Z'
+        },
+        {
+          id: 2,
+          usuarioID: 'u1',
+          proyecto: 'Pendiente Reciente',
+          comentarios: 'Otro',
+          estado: 'Pendiente',
+          fechaCreacion: '2026-03-01T10:00:00.000Z'
+        }
+      ],
+      documentos: [
+        { id: 'd1', solicitudID: 2, fechaCarga: '2026-03-10T10:00:00.000Z' }
+      ]
+    });
+
+    render(<UserPortal />);
+
+    await user.selectOptions(screen.getAllByRole('combobox')[0], 'Pendiente');
+
+    const projectButtons = screen.getAllByRole('button', { name: /Pendiente /i });
+    expect(projectButtons[0]).toHaveTextContent('Pendiente Reciente');
+  });
+
   it('opens notifications and selects solicitud', async () => {
     const user = userEvent.setup();
     render(<UserPortal />);

@@ -99,6 +99,17 @@ const AdminDashboard = () => {
 
     return latestDocumentDate || solicitud.fechaUltimoDocumento || solicitud.fechaCreacion;
   };
+
+  const getSolicitudSortTimestamp = (solicitud) => {
+    const sortDate = getSolicitudSortDate(solicitud);
+    const sortTimestamp = sortDate ? new Date(sortDate).getTime() : 0;
+    if (!Number.isNaN(sortTimestamp)) {
+      return sortTimestamp;
+    }
+
+    const creationTimestamp = solicitud?.fechaCreacion ? new Date(solicitud.fechaCreacion).getTime() : 0;
+    return Number.isNaN(creationTimestamp) ? 0 : creationTimestamp;
+  };
   
   const newDocsCount = documentos.filter(d => !d.vistoPorAdmin).length;
 
@@ -120,7 +131,15 @@ const AdminDashboard = () => {
     const matchesDate = !targetDate || (startDate && endDate && startDate <= targetDate && endDate >= targetDate);
 
     return matchesSearch && matchesFilter && matchesDate;
-  }).sort((a, b) => new Date(getSolicitudSortDate(b)) - new Date(getSolicitudSortDate(a)));
+  }).sort((a, b) => {
+    const timestampDifference = getSolicitudSortTimestamp(b) - getSolicitudSortTimestamp(a);
+    if (timestampDifference !== 0) {
+      return timestampDifference;
+    }
+
+    const creationDifference = new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime();
+    return Number.isNaN(creationDifference) ? 0 : creationDifference;
+  });
 
   const totalPages = Math.max(1, Math.ceil(filteredSolicitudes.length / itemsPerPage));
   const showPagination = filteredSolicitudes.length > itemsPerPage;

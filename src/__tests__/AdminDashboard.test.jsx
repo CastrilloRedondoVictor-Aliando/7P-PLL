@@ -262,6 +262,45 @@ describe('AdminDashboard', () => {
     expect(projectCells[0]).toHaveTextContent('Proyecto Con Documento Nuevo');
   });
 
+  it('keeps ordering by latest uploaded document when filtering by estado', async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({
+      ...baseAuthState,
+      solicitudes: [
+        {
+          id: 1,
+          usuarioID: 'u1',
+          usuarioNombre: 'Usuario Uno',
+          usuarioEmail: 'u1@empresa.com',
+          proyecto: 'Pendiente Antiguo',
+          comentarios: 'Comentario 1',
+          estado: 'Pendiente',
+          fechaCreacion: '2026-03-04T10:00:00.000Z'
+        },
+        {
+          id: 2,
+          usuarioID: 'u2',
+          usuarioNombre: 'Usuario Dos',
+          usuarioEmail: 'u2@empresa.com',
+          proyecto: 'Pendiente Reciente',
+          comentarios: 'Comentario 2',
+          estado: 'Pendiente',
+          fechaCreacion: '2026-03-01T10:00:00.000Z'
+        }
+      ],
+      documentos: [
+        { id: 'd1', solicitudID: 2, categoria: 'General', nombre: 'doc1.pdf', vistoPorAdmin: false, fechaCarga: '2026-03-10T10:00:00.000Z' }
+      ]
+    });
+
+    render(<AdminDashboard />);
+
+    await user.click(screen.getByRole('button', { name: /Filtrar solicitudes pendientes/i }));
+
+    const projectRows = screen.getAllByText(/Pendiente /i);
+    expect(projectRows[0]).toHaveTextContent('Pendiente Reciente');
+  });
+
   it('shows imported metadata in admin detail when present', async () => {
     const user = userEvent.setup();
     render(<AdminDashboard />);
