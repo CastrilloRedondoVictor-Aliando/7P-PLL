@@ -11,7 +11,7 @@ const CreateSolicitudModal = ({ isOpen, onClose, onCreate, availableUsers = [], 
     mode="admin"
     headerSubtitle="Crear solicitud para varios usuarios"
     submitLabel="Crear Solicitud"
-    projectLabel="Nombre del Proyecto *"
+    projectLabel="Nombre del Proyecto"
     projectPlaceholder="Ej: Proyecto Omega"
   />
 );

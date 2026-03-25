@@ -18,18 +18,20 @@ const SolicitudModalBase = ({
   commentsLabel,
   commentsPlaceholder,
   requireComments,
-  hideRecipientSelector,
   initialData,
   showPercentageField,
-  showEstadoField
+  showEstadoField,
+  hideRecipientSelector = false
 }) => {
   const toDateInputValue = (value) => {
     if (!value) return '';
+
     if (typeof value === 'string') {
       const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
       if (isoMatch) {
         return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
       }
+
       const esMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
       if (esMatch) {
         return `${esMatch[3]}-${esMatch[2]}-${esMatch[1]}`;
@@ -167,15 +169,12 @@ const SolicitudModalBase = ({
 
     let submitResult;
     if (mode === 'admin' && shouldSelectRecipients) {
-      if (selectedEmails.length > 0 && formData.proyecto) {
+      if (selectedEmails.length > 0) {
         submitResult = await onCreate(selectedEmails, formData.proyecto, '', baseExtras);
       } else {
         return;
       }
     } else if (mode === 'admin') {
-      if (!formData.proyecto) {
-        return;
-      }
       const submitFn = onSubmit || onCreate;
       submitResult = await submitFn({
         proyecto: formData.proyecto,
@@ -183,7 +182,7 @@ const SolicitudModalBase = ({
         ...baseExtras
       });
     } else {
-      if (formData.proyecto && (!requireComments || formData.comentarios)) {
+      if (!requireComments || formData.comentarios) {
         submitResult = await onCreate(formData.proyecto, formData.comentarios, baseExtras);
       } else {
         return;
@@ -323,7 +322,6 @@ const SolicitudModalBase = ({
               onChange={handleChange}
               className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
               placeholder={projectPlaceholder}
-              required
             />
             {projectHelper && (
               <p className="text-xs text-gray-500 mt-1">{projectHelper}</p>
@@ -348,9 +346,7 @@ const SolicitudModalBase = ({
             </div>
           )}
 
-          <div className="border-t pt-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">Campos opcionales</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {showEstadoField && (
                 <div>
                   <label htmlFor="estado" className="block text-sm font-semibold text-gray-700 mb-2">
@@ -529,7 +525,6 @@ const SolicitudModalBase = ({
                 />
               </div>
             </div>
-          </div>
 
           <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4 border-t">
             <button

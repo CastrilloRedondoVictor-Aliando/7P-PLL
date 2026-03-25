@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
 import { useAuth } from './hooks/useAuth';
 import { hasApiScope } from './config/msalConfig';
@@ -15,6 +15,7 @@ function App() {
   const isAppLoading = isProcessingCallback || isInitializing;
   const [showLoadingScreen, setShowLoadingScreen] = useState(isAppLoading);
   const [isLoadingClosing, setIsLoadingClosing] = useState(false);
+  const hasSyncedSessionRef = useRef(false);
 
   // Manejar el callback de MSAL después de login redirect (solo una vez)
   useEffect(() => {
@@ -25,8 +26,10 @@ function App() {
 
         if (response && redirectToken) {
           // Hubo un login exitoso, sincronizar con backend usando el token del response
+          hasSyncedSessionRef.current = true;
           await handleLoginSuccess(redirectToken);
         } else if (response) {
+          hasSyncedSessionRef.current = true;
           await handleLoginSuccess();
         }
       } catch (error) {
@@ -40,18 +43,27 @@ function App() {
   }, []); // Sin dependencias - solo ejecutar una vez
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      hasSyncedSessionRef.current = false;
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
     const syncIfNeeded = async () => {
       if (!isAuthenticated || isProcessingCallback) return;
-      if (user) return;
+      if (hasSyncedSessionRef.current) return;
+
+      hasSyncedSessionRef.current = true;
       try {
         await handleLoginSuccess();
       } catch (error) {
+        hasSyncedSessionRef.current = false;
         console.error('[App] Error sincronizando sesion', error);
       }
     };
 
     syncIfNeeded();
-  }, [isAuthenticated, isProcessingCallback, user, handleLoginSuccess]);
+  }, [isAuthenticated, isProcessingCallback, handleLoginSuccess]);
 
   useEffect(() => {
     if (isAppLoading) {

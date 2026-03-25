@@ -3,7 +3,7 @@ import { useMsal } from '@azure/msal-react';
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import Swal from 'sweetalert2';
 import {AuthContext } from './AuthContextDefinition';
-import { apiRequest } from '../config/api';
+import { apiRequest, isAuthorizationError } from '../config/api';
 import { loginRequest, hasApiScope } from '../config/msalConfig';
 
 export const AuthProvider = ({ children }) => {
@@ -254,6 +254,10 @@ export const AuthProvider = ({ children }) => {
       const mensajesData = await apiRequest('/mensajes', { token });
       setMensajes(mensajesData);
     } catch (error) {
+      if (isAuthorizationError(error)) {
+        return;
+      }
+
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -349,6 +353,11 @@ export const AuthProvider = ({ children }) => {
     return data.url;
   };
 
+  const getDocumentPreviewContent = async (documentoId) => {
+    const token = await getAccessToken();
+    return apiRequest(`/documentos/${documentoId}/preview-content`, { token });
+  };
+
   const deleteDocument = async (documentoId) => {
     if (user?.rol === 'view') {
       Swal.fire({
@@ -434,6 +443,18 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Solicitud no encontrada');
     }
 
+    const optimisticSolicitud = {
+      ...solicitudActual,
+      estado: nuevoEstado,
+      ...(porcentaje !== undefined ? { porcentaje } : {})
+    };
+
+    setSolicitudes(prev => 
+      prev.map(sol => 
+        sol.id === solicitudID ? optimisticSolicitud : sol
+      )
+    );
+
     try {
       const token = await getAccessToken();
       const payload = {
@@ -487,6 +508,12 @@ export const AuthProvider = ({ children }) => {
         });
       }
     } catch (error) {
+      setSolicitudes(prev => 
+        prev.map(sol => 
+          sol.id === solicitudID ? solicitudActual : sol
+        )
+      );
+
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -838,6 +865,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     uploadDocument,
+    getDocumentPreviewContent,
     getDocumentPreviewUrl,
     getDocumentDownloadUrl,
     deleteDocument,

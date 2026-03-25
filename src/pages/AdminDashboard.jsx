@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, FileText, Download, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown, Upload, Menu, Plane, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, FileText, Download, FileSearch, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown, Upload, Menu, Plane, X } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import JSZip from 'jszip';
 import Swal from 'sweetalert2';
 import { useAuth } from '../hooks/useAuth';
-import { apiRequest } from '../config/api';
+import { API_BASE_URL, apiRequest, isAuthorizationError } from '../config/api';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import CreateSolicitudModal from '../components/CreateSolicitudModal';
 import EditSolicitudModal from '../components/EditSolicitudModal';
+import { openDocumentPreview } from '../utils/documentPreview';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudCompleta, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudCompleta, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentPreviewContent, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken } = useAuth();
   const isViewRole = user?.rol === 'view';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
@@ -28,6 +30,7 @@ const AdminDashboard = () => {
   const [isDocsDropdownClosing, setIsDocsDropdownClosing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [openEstadoId, setOpenEstadoId] = useState(null);
+  const [estadoMenuPosition, setEstadoMenuPosition] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showLoadingScreen, setShowLoadingScreen] = useState(loading);
@@ -43,9 +46,21 @@ const AdminDashboard = () => {
   const mobileDocsButtonRef = useRef(null);
   const docsDropdownRef = useRef(null);
   const mobileDocsDropdownRef = useRef(null);
+  const estadoTriggerRefs = useRef(new Map());
   const joinedGroupsRef = useRef(new Set());
   const importInputRef = useRef(null);
   const itemsPerPage = 10;
+  const normalizeIdentifier = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
+  const currentUserIdentifiers = new Set(
+    [user?.id, user?.oid, user?.entraIdOID, user?.email]
+      .map(normalizeIdentifier)
+      .filter(Boolean)
+  );
+  const isCurrentUserMessage = (mensaje) => {
+    if (!mensaje) return false;
+    if (mensaje.rol === 'admin' || mensaje.rol === 'view') return true;
+    return currentUserIdentifiers.has(normalizeIdentifier(mensaje?.usuarioID));
+  };
 
 
   // Contar mensajes no leídos de usuarios
@@ -71,6 +86,19 @@ const AdminDashboard = () => {
     );
     return unseenDocs.length > 0;
   });
+
+  const getSolicitudSortDate = (solicitud) => {
+    const latestDocumentDate = documentos
+      .filter((doc) => doc.solicitudID === solicitud.id)
+      .map((doc) => doc.createdAt || doc.fechaCarga)
+      .filter(Boolean)
+      .reduce((latest, current) => {
+        if (!latest) return current;
+        return new Date(current) > new Date(latest) ? current : latest;
+      }, null);
+
+    return latestDocumentDate || solicitud.fechaUltimoDocumento || solicitud.fechaCreacion;
+  };
   
   const newDocsCount = documentos.filter(d => !d.vistoPorAdmin).length;
 
@@ -92,7 +120,7 @@ const AdminDashboard = () => {
     const matchesDate = !targetDate || (startDate && endDate && startDate <= targetDate && endDate >= targetDate);
 
     return matchesSearch && matchesFilter && matchesDate;
-  }).sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
+  }).sort((a, b) => new Date(getSolicitudSortDate(b)) - new Date(getSolicitudSortDate(a)));
 
   const totalPages = Math.max(1, Math.ceil(filteredSolicitudes.length / itemsPerPage));
   const showPagination = filteredSolicitudes.length > itemsPerPage;
@@ -167,9 +195,40 @@ const AdminDashboard = () => {
 
   const estadosDisponibles = ['Pendiente', 'En revisión', 'Aceptada', 'Rechazada'];
 
-  const renderEstadoSelector = (solicitud) => {
+  const closeEstadoMenu = () => {
+    setOpenEstadoId(null);
+    setEstadoMenuPosition(null);
+  };
+
+  const openEstadoMenu = (selectorId, menuAlignment = 'right') => {
+    const triggerElement = estadoTriggerRefs.current.get(selectorId);
+    if (!triggerElement) return;
+
+    const rect = triggerElement.getBoundingClientRect();
+    const menuWidth = 160;
+    const menuHeight = estadosDisponibles.length * 40;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const preferredLeft = menuAlignment === 'left' ? rect.left : rect.right - menuWidth;
+    const left = Math.min(Math.max(12, preferredLeft), Math.max(12, viewportWidth - menuWidth - 12));
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const shouldOpenUpwards = spaceBelow < menuHeight + 12 && spaceAbove > spaceBelow;
+
+    setOpenEstadoId(selectorId);
+    setEstadoMenuPosition({
+      left,
+      top: shouldOpenUpwards ? Math.max(12, rect.top - menuHeight - 8) : rect.bottom + 8,
+      width: menuWidth,
+      openUpwards: shouldOpenUpwards
+    });
+  };
+
+  const renderEstadoSelector = (solicitud, options = {}) => {
+    const { menuAlignment = 'right', context = 'list' } = options;
+    const selectorId = `${context}-${solicitud.id}`;
     const estadoColors = getEstadoColor(solicitud.estado);
-    const isOpen = openEstadoId === solicitud.id;
+    const isOpen = openEstadoId === selectorId;
     const estadoItemStyles = {
       Pendiente: 'hover:bg-yellow-50',
       'En revisión': 'hover:bg-blue-50',
@@ -194,9 +253,22 @@ const AdminDashboard = () => {
     return (
       <div className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
         <button
+          ref={(element) => {
+            if (element) {
+              estadoTriggerRefs.current.set(selectorId, element);
+              return;
+            }
+            estadoTriggerRefs.current.delete(selectorId);
+          }}
           type="button"
           data-estado-trigger="true"
-          onClick={() => setOpenEstadoId(prev => (prev === solicitud.id ? null : solicitud.id))}
+          onClick={() => {
+            if (isOpen) {
+              closeEstadoMenu();
+              return;
+            }
+            openEstadoMenu(selectorId, menuAlignment);
+          }}
           className={`px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap inline-flex items-center gap-1 ${estadoColors.bg} ${estadoColors.text} hover:opacity-90 transition-opacity ring-1 ring-transparent hover:ring-primary/30`}
           aria-haspopup="menu"
           aria-expanded={isOpen}
@@ -204,10 +276,16 @@ const AdminDashboard = () => {
           <span>{solicitud.estado}</span>
           <ChevronDown className="w-3.5 h-3.5 opacity-70" />
         </button>
-        {isOpen && (
+        {isOpen && estadoMenuPosition && createPortal(
           <div
             data-estado-menu="true"
-            className="absolute right-0 top-full mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50 animate-pop-in"
+            className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[80] animate-pop-in"
+            style={{
+              top: `${estadoMenuPosition.top}px`,
+              left: `${estadoMenuPosition.left}px`,
+              width: `${estadoMenuPosition.width}px`,
+              transformOrigin: estadoMenuPosition.openUpwards ? 'bottom right' : 'top right'
+            }}
           >
             {estadosDisponibles.map(estado => (
               <button
@@ -215,14 +293,15 @@ const AdminDashboard = () => {
                 type="button"
                 onClick={() => {
                   handleEstadoChange(solicitud, estado);
-                  setOpenEstadoId(null);
+                  closeEstadoMenu();
                 }}
                 className={`w-full text-left px-3 py-2 text-sm ${estadoItemStyles[estado] || 'hover:bg-gray-50'} ${estado === solicitud.estado ? `font-semibold ${estadoSelectedStyles[estado] || 'bg-gray-50 text-gray-700'}` : 'text-gray-700'}`}
               >
                 {estado}
               </button>
             ))}
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     );
@@ -289,46 +368,70 @@ const AdminDashboard = () => {
   }, [selectedSolicitud, solicitudes]);
 
   useEffect(() => {
-    const joinAllGroups = async () => {
-      if (!solicitudes.length) return;
+    let isCancelled = false;
+
+    const syncSelectedGroup = async () => {
+      const selectedSolicitudId = selectedSolicitud?.id;
+      const joinedSolicitudId = Array.from(joinedGroupsRef.current)[0] ?? null;
+
+      if (selectedSolicitudId === joinedSolicitudId) {
+        return;
+      }
+
       try {
         const token = await getAccessToken();
-        const joinPromises = solicitudes.map(async (sol) => {
-          if (joinedGroupsRef.current.has(sol.id)) return;
-          await apiRequest('/signalr/join-group', {
+
+        if (joinedSolicitudId !== null) {
+          await apiRequest('/signalr/leave-group', {
             method: 'POST',
-            body: JSON.stringify({ solicitudID: sol.id }),
+            body: JSON.stringify({ solicitudID: joinedSolicitudId }),
             token
           });
-          joinedGroupsRef.current.add(sol.id);
+          joinedGroupsRef.current.delete(joinedSolicitudId);
+        }
+
+        if (isCancelled || selectedSolicitudId === null || selectedSolicitudId === undefined) {
+          return;
+        }
+
+        await apiRequest('/signalr/join-group', {
+          method: 'POST',
+          body: JSON.stringify({ solicitudID: selectedSolicitudId }),
+          token
         });
-        await Promise.all(joinPromises);
+        joinedGroupsRef.current.add(selectedSolicitudId);
       } catch (error) {
       }
     };
 
-    joinAllGroups();
+    syncSelectedGroup();
 
     return () => {
-      const leaveAllGroups = async () => {
-        if (joinedGroupsRef.current.size === 0) return;
+      isCancelled = true;
+    };
+  }, [selectedSolicitud?.id, getAccessToken]);
+
+  useEffect(() => {
+    return () => {
+      const leaveJoinedGroup = async () => {
+        const joinedSolicitudId = Array.from(joinedGroupsRef.current)[0];
+        if (joinedSolicitudId === undefined) return;
+
         try {
           const token = await getAccessToken();
-          const leavePromises = Array.from(joinedGroupsRef.current).map(async (solicitudID) => {
-            await apiRequest('/signalr/leave-group', {
-              method: 'POST',
-              body: JSON.stringify({ solicitudID }),
-              token
-            });
+          await apiRequest('/signalr/leave-group', {
+            method: 'POST',
+            body: JSON.stringify({ solicitudID: joinedSolicitudId }),
+            token
           });
-          await Promise.all(leavePromises);
           joinedGroupsRef.current.clear();
         } catch (error) {
         }
       };
-      leaveAllGroups();
+
+      leaveJoinedGroup();
     };
-  }, [solicitudes, getAccessToken]);
+  }, [getAccessToken]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -370,11 +473,21 @@ const AdminDashboard = () => {
       if (target.closest('[data-estado-trigger="true"]') || target.closest('[data-estado-menu="true"]')) {
         return;
       }
-      setOpenEstadoId(null);
+      closeEstadoMenu();
+    };
+
+    const handleViewportChange = () => {
+      closeEstadoMenu();
     };
 
     document.addEventListener('mousedown', handleEstadoOutsideClick);
-    return () => document.removeEventListener('mousedown', handleEstadoOutsideClick);
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
+    return () => {
+      document.removeEventListener('mousedown', handleEstadoOutsideClick);
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
+    };
   }, [openEstadoId]);
 
   useEffect(() => {
@@ -628,77 +741,18 @@ const AdminDashboard = () => {
 
   const handleDownloadDocument = async (doc) => {
     try {
-      const [previewUrl, downloadUrl] = await Promise.all([
-        getDocumentPreviewUrl(doc.id),
-        getDocumentDownloadUrl(doc.id)
-      ]);
-
-      const fileName = doc?.nombre || '';
-      const fileType = doc?.tipo || '';
-      const lowerName = fileName.toLowerCase();
-      const isPdf = fileType.includes('pdf') || lowerName.endsWith('.pdf');
-      const isImage = fileType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(lowerName);
-      const isOffice = /\.(docx?|xlsx?|pptx?)$/.test(lowerName) ||
-        /(word|excel|powerpoint)/i.test(fileType);
-      const previewSrc = isOffice
-        ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}&zoom=50`
-        : previewUrl;
-      const canEmbed = isPdf || isImage || isOffice;
-      const isMobile = window.matchMedia('(max-width: 1023px)').matches;
-
-      if (isMobile) {
-        const mobileResult = await Swal.fire({
-          title: doc?.nombre ? `Previsualizar ${doc.nombre}` : 'Previsualizar documento',
-          text: 'En movil la previsualizacion se abre en una nueva pestaña para poder usar los controles.',
-          showCancelButton: true,
-          showDenyButton: true,
-          confirmButtonText: 'Abrir vista',
-          denyButtonText: 'Descargar',
-          cancelButtonText: 'Cerrar',
-          confirmButtonColor: '#1e40af'
-        });
-
-        if (mobileResult.isConfirmed) {
-          window.open(previewSrc, '_blank', 'noopener');
-        } else if (mobileResult.isDenied) {
-          window.open(downloadUrl, '_blank', 'noopener');
-        }
-        return;
-      }
-
-      const result = await Swal.fire({
-        title: doc?.nombre ? `Previsualizar ${doc.nombre}` : 'Previsualizar documento',
-        html: canEmbed
-          ? `
-            <div style="width:100%;height:60vh;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
-              <iframe src="${previewSrc}" title="Previsualizacion" style="width:100%;height:100%;border:0;"></iframe>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-xl sm:text-2xl font-bold">{getProyectoDisplayName(selectedSolicitud.proyecto)}</h3>
-                      {renderEstadoSelector(selectedSolicitud)}
-                    </div>
-          `
-          : `
-            <div style="padding:18px;border-radius:10px;border:1px solid #e5e7eb;background:#f8fafc;">
-              <p style="font-size:14px;color:#334155;">Este tipo de archivo no admite previsualizacion en el navegador.</p>
-            </div>
-            <p style="margin-top:10px;font-size:14px;color:#6b7280;">Usa el boton Descargar para abrirlo.</p>
-          `,
-        showCancelButton: true,
-        confirmButtonText: 'Descargar',
-        cancelButtonText: 'Cerrar',
-        confirmButtonColor: '#1e40af',
-        width: 900
+      await openDocumentPreview({
+        doc,
+        getDocumentPreviewUrl,
+        getDocumentPreviewContent,
+        getDocumentDownloadUrl,
+        Swal
       });
-
-      if (result.isConfirmed) {
-        window.open(downloadUrl, '_blank', 'noopener');
-      }
     } catch (error) {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'No se pudo descargar el documento',
+        text: 'No se pudo previsualizar el documento',
         confirmButtonColor: '#1e40af'
       });
     }
@@ -771,6 +825,7 @@ const AdminDashboard = () => {
 
     setIsDownloadingSolicitud(true);
     try {
+      const token = await getAccessToken();
       const zip = new JSZip();
       const zipRootName = getSolicitudZipName(selectedSolicitud);
       const rootFolder = zip.folder(zipRootName);
@@ -792,8 +847,12 @@ const AdminDashboard = () => {
         const categoryFolder = rootFolder.folder(folderName);
 
         for (const doc of docs) {
-          const downloadUrl = await getDocumentDownloadUrl(doc.id);
-          const response = await fetch(downloadUrl);
+          const response = await fetch(`${API_BASE_URL}/documentos/${doc.id}/file`, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            },
+            credentials: 'include'
+          });
           if (!response.ok) {
             throw new Error(`No se pudo descargar el archivo ${doc.nombre}`);
           }
@@ -837,6 +896,10 @@ const AdminDashboard = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(zipUrl);
     } catch (error) {
+      if (isAuthorizationError(error)) {
+        return;
+      }
+
       Swal.fire({
         icon: 'error',
         title: 'Error al descargar',
@@ -1751,7 +1814,15 @@ const AdminDashboard = () => {
         {/* Tabla de Solicitudes */}
         <div className="bg-white rounded-xl shadow-md hidden xl:block">
           <div className="overflow-x-auto xl:overflow-visible">
-            <table className="w-full">
+            <table className="w-full table-fixed">
+              <colgroup>
+                <col className="w-[20%]" />
+                <col className="w-[21%]" />
+                <col className="w-[18%]" />
+                <col className="w-[18%]" />
+                <col className="w-[11%]" />
+                <col className="w-[12%]" />
+              </colgroup>
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -1794,12 +1865,12 @@ const AdminDashboard = () => {
                         className="hover:bg-gray-50 transition-colors cursor-pointer"
                         onClick={() => setSelectedSolicitud(solicitud)}
                       >
-                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-900">
+                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-900 align-top">
                           <div className="font-medium text-gray-900">
                             {getUserName(solicitud.usuarioID)}
                           </div>
                         </td>
-                        <td className="px-4 lg:px-6 py-4">
+                        <td className="px-4 lg:px-6 py-4 align-top">
                           <div className="text-sm font-medium text-gray-900 truncate max-w-[12rem]">
                             {getProyectoDisplayName(solicitud.proyecto)}
                           </div>
@@ -1807,18 +1878,18 @@ const AdminDashboard = () => {
                             {solicitud.comentarios?.trim() ? solicitud.comentarios : 'Sin descripcion'}
                           </div>
                         </td>
-                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden md:table-cell whitespace-nowrap">
+                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden md:table-cell whitespace-nowrap align-top">
                           {solicitud.destino?.trim() ? solicitud.destino : 'Sin destino'}
                         </td>
-                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 whitespace-nowrap hidden md:table-cell">
+                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 whitespace-nowrap hidden md:table-cell align-top">
                           <div>Inicio: {solicitud.fechaInicio ? formatDate(solicitud.fechaInicio) : 'Sin fecha'}</div>
                           <div>Fin: {solicitud.fechaFin ? formatDate(solicitud.fechaFin) : 'Sin fecha'}</div>
                         </td>
-                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden lg:table-cell whitespace-nowrap">
+                        <td className="px-4 lg:px-6 py-4 text-sm text-gray-600 hidden lg:table-cell whitespace-nowrap align-top">
                           {numDocs} documento{numDocs !== 1 ? 's' : ''}
                         </td>
-                        <td className="px-4 lg:px-6 py-4">
-                          {renderEstadoSelector(solicitud)}
+                        <td className="px-4 lg:px-6 py-4 align-top whitespace-nowrap">
+                          {renderEstadoSelector(solicitud, { context: 'table' })}
                         </td>
                       </tr>
                     );
@@ -1856,7 +1927,7 @@ const AdminDashboard = () => {
                         <p className="text-xs text-gray-500 mt-0.5">{solicitud.cargo}</p>
                       )}
                     </div>
-                    {renderEstadoSelector(solicitud)}
+                    {renderEstadoSelector(solicitud, { context: 'card' })}
                   </div>
 
                   <div className="mt-3">
@@ -1966,8 +2037,14 @@ const AdminDashboard = () => {
               <div className="bg-primary text-white p-6 relative">
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
                   <div>
-                  <div className="flex flex-col gap-2">
-                    <h3 className="text-xl sm:text-2xl font-bold">{getProyectoDisplayName(selectedSolicitud.proyecto)}</h3>
+                  <div className="flex flex-col gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-xl sm:text-2xl font-bold">{getProyectoDisplayName(selectedSolicitud.proyecto)}</h3>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 sm:mt-1 sm:pb-3 text-blue-100">
+                      <span className="text-sm font-medium">Estado:</span>
+                      {renderEstadoSelector(selectedSolicitud, { menuAlignment: 'left', context: 'detail' })}
+                    </div>
                   </div>
                   {!isViewRole && (
                     <div className="sm:hidden mt-3 mb-4 grid grid-cols-2 gap-2 w-full">
@@ -2068,6 +2145,7 @@ const AdminDashboard = () => {
                 </div>
                 <button
                   onClick={closeDetailPanel}
+                  aria-label="Cerrar detalle"
                   className="absolute top-4 right-4 text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
                 >
                   <XCircle className="w-6 h-6" />
@@ -2150,9 +2228,9 @@ const AdminDashboard = () => {
                                   type="button"
                                   onClick={() => handleDownloadDocument(doc)}
                                   className="flex-shrink-0 text-primary hover:text-blue-700 p-1 rounded transition-colors"
-                                  title="Descargar"
+                                  title="Previsualizar"
                                 >
-                                  <Download className="w-4 h-4" />
+                                  <FileSearch className="w-4 h-4" />
                                 </button>
                                 {!isViewRole && (
                                   <button
@@ -2196,9 +2274,9 @@ const AdminDashboard = () => {
                                   type="button"
                                   onClick={() => handleDownloadDocument(doc)}
                                   className="flex-shrink-0 text-primary hover:text-blue-700 p-1 rounded transition-colors"
-                                  title="Descargar"
+                                  title="Previsualizar"
                                 >
-                                  <Download className="w-4 h-4" />
+                                  <FileSearch className="w-4 h-4" />
                                 </button>
                                 {!isViewRole && (
                                   <button
@@ -2242,9 +2320,9 @@ const AdminDashboard = () => {
                                   type="button"
                                   onClick={() => handleDownloadDocument(doc)}
                                   className="flex-shrink-0 text-primary hover:text-blue-700 p-1 rounded transition-colors"
-                                  title="Descargar"
+                                  title="Previsualizar"
                                 >
-                                  <Download className="w-4 h-4" />
+                                  <FileSearch className="w-4 h-4" />
                                 </button>
                                 {!isViewRole && (
                                   <button
@@ -2275,7 +2353,7 @@ const AdminDashboard = () => {
                       <p className="text-gray-500 text-center py-4">No hay mensajes</p>
                     ) : (
                       solicitudMensajes.map(mensaje => {
-                        const isCurrentUser = mensaje.usuarioID === user.id;
+                        const isCurrentUser = isCurrentUserMessage(mensaje);
                         return (
                           <div
                             key={mensaje.id}

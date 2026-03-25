@@ -25,7 +25,7 @@ describe('SolicitudModalBase', () => {
         mode="admin"
         headerSubtitle="Admin"
         submitLabel="Crear Solicitud"
-        projectLabel="Nombre del Proyecto *"
+        projectLabel="Nombre del Proyecto"
         projectPlaceholder="Ej"
       />
     );
@@ -55,7 +55,7 @@ describe('SolicitudModalBase', () => {
         mode="admin"
         headerSubtitle="Admin"
         submitLabel="Crear Solicitud"
-        projectLabel="Nombre del Proyecto *"
+        projectLabel="Nombre del Proyecto"
         projectPlaceholder="Ej"
       />
     );
@@ -86,7 +86,7 @@ describe('SolicitudModalBase', () => {
         mode="user"
         headerSubtitle="User"
         submitLabel="Enviar Solicitud"
-        projectLabel="Informacion del Proyecto *"
+        projectLabel="Informacion del Proyecto"
         projectPlaceholder="Ej"
         commentsLabel="Principales funciones realizadas *"
         commentsPlaceholder="Detalles"

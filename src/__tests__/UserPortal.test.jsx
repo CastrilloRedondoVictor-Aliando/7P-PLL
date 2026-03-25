@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react-dom/test-utils';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -88,6 +88,7 @@ describe('UserPortal', () => {
     vi.clearAllMocks();
     mockUseAuth.mockReturnValue(baseAuthState);
     mockSwalFire.mockResolvedValue({ isConfirmed: false, isDenied: false });
+    vi.spyOn(window, 'open').mockImplementation(() => null);
     window.matchMedia.mockImplementation((query) => ({
       matches: false,
       media: query,
@@ -101,6 +102,7 @@ describe('UserPortal', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     cleanup();
   });
 
@@ -111,9 +113,57 @@ describe('UserPortal', () => {
     expect(screen.getByText(/Mis Solicitudes/i)).toBeInTheDocument();
     expect(screen.getByText('Proyecto Uno')).toBeInTheDocument();
     expect(screen.queryByText('Proyecto Ajeno')).not.toBeInTheDocument();
+    expect(mockApiRequest).not.toHaveBeenCalledWith('/signalr/join-group', expect.anything());
 
     await user.type(screen.getByPlaceholderText(/Buscar solicitudes/i), 'no-match');
     expect(screen.getByText(/No hay solicitudes/i)).toBeInTheDocument();
+  });
+
+  it('joins signalr group only when opening a detail', async () => {
+    const user = userEvent.setup();
+    render(<UserPortal />);
+
+    await user.click(screen.getAllByText('Proyecto Uno')[0]);
+
+    await waitFor(() => {
+      expect(mockApiRequest).toHaveBeenCalledWith('/signalr/join-group', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ solicitudID: 1 }),
+        token: 'token'
+      }));
+    });
+  });
+
+  it('orders user solicitudes by most recent uploaded document', () => {
+    mockUseAuth.mockReturnValue({
+      ...baseAuthState,
+      solicitudes: [
+        {
+          id: 1,
+          usuarioID: 'u1',
+          proyecto: 'Proyecto Antiguo',
+          comentarios: 'Detalle',
+          estado: 'Pendiente',
+          fechaCreacion: '2026-03-04'
+        },
+        {
+          id: 2,
+          usuarioID: 'u1',
+          proyecto: 'Proyecto Con Documento Nuevo',
+          comentarios: 'Otro',
+          estado: 'Pendiente',
+          fechaCreacion: '2026-03-01'
+        }
+      ],
+      documentos: [
+        { id: 'd1', solicitudID: 2, fechaCarga: '2026-03-10T10:00:00.000Z' }
+      ]
+    });
+
+    render(<UserPortal />);
+
+    const projectButtons = screen.getAllByRole('button', { name: /Proyecto /i });
+    expect(projectButtons[0]).toHaveTextContent('Proyecto Con Documento Nuevo');
   });
 
   it('opens notifications and selects solicitud', async () => {
@@ -201,23 +251,35 @@ describe('UserPortal', () => {
     mockSwalFire
       .mockResolvedValueOnce({ isConfirmed: false, isDenied: true })
       .mockResolvedValueOnce({ isConfirmed: false, isDenied: false });
+    mockApiRequest.mockImplementation((url) => {
+      if (url === '/documentos/politica/preview') {
+        return Promise.resolve({ url: 'https://example.com/politica-preview.pdf' });
+      }
+      if (url === '/documentos/politica/download') {
+        return Promise.resolve({ url: 'https://example.com/politica-download.pdf' });
+      }
+      return Promise.resolve({ success: true });
+    });
 
     render(<UserPortal />);
     mockApiRequest.mockClear();
 
-    await user.click(screen.getAllByTitle(/Guia de uso/i)[0]);
+    await user.click(screen.getAllByTitle(/Guia de uso/i).at(-1));
 
-    expect(mockApiRequest).not.toHaveBeenCalledWith('/documentos/guia-uso/preview', expect.anything());
-    expect(mockSwalFire).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      title: 'Informacion',
-      confirmButtonText: 'Guia de uso',
-      denyButtonText: 'Politica',
-      cancelButtonText: 'Cancelar'
-    }));
-    expect(mockSwalFire).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      title: 'Politica',
-      html: expect.stringContaining('Pol%C3%ADtica%207P%20TR.pdf')
-    }));
+    await waitFor(() => {
+      expect(mockSwalFire).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        title: 'Informacion',
+        confirmButtonText: 'Guia de uso',
+        denyButtonText: 'Politica',
+        cancelButtonText: 'Cancelar'
+      }));
+      expect(mockApiRequest).toHaveBeenCalledWith('/documentos/politica/preview', expect.objectContaining({ token: 'token' }));
+      expect(mockApiRequest).toHaveBeenCalledWith('/documentos/politica/download', expect.objectContaining({ token: 'token' }));
+      expect(mockSwalFire).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        title: 'Politica',
+        html: expect.stringContaining('https://example.com/politica-preview.pdf')
+      }));
+    });
   });
 
   it('loads guia de uso when selected in document selector', async () => {
@@ -225,19 +287,73 @@ describe('UserPortal', () => {
     mockSwalFire
       .mockResolvedValueOnce({ isConfirmed: true, isDenied: false })
       .mockResolvedValueOnce({ isConfirmed: false, isDenied: false });
+    mockApiRequest.mockImplementation((url) => {
+      if (url === '/documentos/guia-uso/preview') {
+        return Promise.resolve({ url: 'https://example.com/guia-preview.docx' });
+      }
+      if (url === '/documentos/guia-uso/download') {
+        return Promise.resolve({ url: 'https://example.com/guia-download.docx' });
+      }
+      return Promise.resolve({ success: true });
+    });
 
     render(<UserPortal />);
     mockApiRequest.mockClear();
 
-    await user.click(screen.getAllByTitle(/Guia de uso/i)[0]);
+    await user.click(screen.getAllByTitle(/Guia de uso/i).at(-1));
 
-    expect(mockApiRequest).not.toHaveBeenCalledWith('/documentos/guia-uso/preview', expect.anything());
-    expect(mockSwalFire).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      title: 'Guia de uso',
-      html: expect.stringContaining('view.officeapps.live.com')
-    }));
-    expect(mockSwalFire).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      html: expect.stringContaining('guia_uso_7P_PLL.docx')
-    }));
+    await waitFor(() => {
+      expect(mockApiRequest).toHaveBeenCalledWith('/documentos/guia-uso/preview', expect.objectContaining({ token: 'token' }));
+      expect(mockApiRequest).toHaveBeenCalledWith('/documentos/guia-uso/download', expect.objectContaining({ token: 'token' }));
+      expect(mockSwalFire).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        title: 'Guia de uso',
+        html: expect.stringContaining('view.officeapps.live.com')
+      }));
+      expect(mockSwalFire).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        html: expect.stringContaining(encodeURIComponent('https://example.com/guia-preview.docx'))
+      }));
+    });
+  });
+
+  it('downloads guia de uso directly instead of opening a new tab', async () => {
+    const user = userEvent.setup();
+    const originalFetch = globalThis.fetch;
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+
+    mockSwalFire
+      .mockResolvedValueOnce({ isConfirmed: true, isDenied: false })
+      .mockResolvedValueOnce({ isConfirmed: true, isDenied: false });
+    mockApiRequest.mockImplementation((url) => {
+      if (url === '/documentos/guia-uso/preview') {
+        return Promise.resolve({ url: 'https://example.com/guia-preview.docx' });
+      }
+      if (url === '/documentos/guia-uso/download') {
+        return Promise.resolve({ url: 'https://example.com/guia-download.docx' });
+      }
+      return Promise.resolve({ success: true });
+    });
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: vi.fn().mockResolvedValue(new Blob(['doc']))
+    });
+    URL.createObjectURL = vi.fn().mockReturnValue('blob:guia-download');
+    URL.revokeObjectURL = vi.fn();
+
+    render(<UserPortal />);
+    mockApiRequest.mockClear();
+    window.open.mockClear();
+
+    await user.click(screen.getAllByTitle(/Guia de uso/i).at(-1));
+
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalledWith('https://example.com/guia-download.docx');
+      expect(URL.createObjectURL).toHaveBeenCalled();
+      expect(window.open).not.toHaveBeenCalledWith('https://example.com/guia-download.docx', '_blank', 'noopener');
+    });
+
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
   });
 });

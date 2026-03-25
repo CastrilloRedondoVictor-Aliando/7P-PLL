@@ -9,7 +9,7 @@ const CreateSolicitudModalUser = ({ isOpen, onClose, onCreate }) => (
     mode="user"
     headerSubtitle="Solicita servicios legales a Perez-Llorca"
     submitLabel="Enviar Solicitud"
-    projectLabel="Informacion del Proyecto *"
+    projectLabel="Informacion del Proyecto"
     projectPlaceholder="Ej: Asesoria legal para expansion internacional"
     projectHelper="Titulo o nombre del proyecto para el que necesitas asesoria"
     commentsLabel="Principales funciones realizadas *"

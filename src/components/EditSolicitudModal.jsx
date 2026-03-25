@@ -10,7 +10,7 @@ const EditSolicitudModal = ({ isOpen, onClose, onSubmit, initialData }) => (
     title="Editar Solicitud"
     headerSubtitle="Actualiza toda la informacion de la solicitud"
     submitLabel="Guardar cambios"
-    projectLabel="Nombre del Proyecto *"
+    projectLabel="Nombre del Proyecto"
     projectPlaceholder="Ej: Proyecto Omega"
     hideRecipientSelector
     initialData={initialData}

@@ -177,6 +177,37 @@ describe('AdminDashboard', () => {
     expect(screen.getByText(/Solicitudes Aceptadas/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Buscar por empleado o destino/)).toBeInTheDocument();
     expect(screen.getAllByText('Proyecto Aceptado').length).toBeGreaterThan(0);
+    expect(mockApiRequest).not.toHaveBeenCalledWith('/signalr/join-group', expect.anything());
+  });
+
+  it('joins and leaves signalr groups only when opening or closing detail', async () => {
+    const user = userEvent.setup();
+    render(<AdminDashboard />);
+
+    const pendingCells = screen.getAllByText('Proyecto Pendiente');
+    const pendingCell = pendingCells.find((cell) => cell.closest('tr'));
+    const row = pendingCell?.closest('tr');
+    expect(row).toBeTruthy();
+
+    await user.click(row);
+
+    await waitFor(() => {
+      expect(mockApiRequest).toHaveBeenCalledWith('/signalr/join-group', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ solicitudID: 1 }),
+        token: 'token'
+      }));
+    });
+
+    await user.click(screen.getByRole('button', { name: /Cerrar detalle/i }));
+
+    await waitFor(() => {
+      expect(mockApiRequest).toHaveBeenCalledWith('/signalr/leave-group', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ solicitudID: 1 }),
+        token: 'token'
+      }));
+    });
   });
 
   it('filters solicitudes by estado and sends messages', async () => {
@@ -193,6 +224,42 @@ describe('AdminDashboard', () => {
     await user.type(messageInput, 'Mensaje admin');
     fireEvent.keyPress(messageInput, { key: 'Enter', code: 'Enter', charCode: 13 });
     expect(baseAuthState.sendMessage).toHaveBeenCalled();
+  });
+
+  it('orders solicitudes by most recent uploaded document', () => {
+    mockUseAuth.mockReturnValue({
+      ...baseAuthState,
+      solicitudes: [
+        {
+          id: 1,
+          usuarioID: 'u1',
+          usuarioNombre: 'Usuario Uno',
+          usuarioEmail: 'u1@empresa.com',
+          proyecto: 'Proyecto Antiguo',
+          comentarios: 'Comentario pendiente',
+          estado: 'Pendiente',
+          fechaCreacion: '2026-03-04'
+        },
+        {
+          id: 2,
+          usuarioID: 'u2',
+          usuarioNombre: 'Usuario Dos',
+          usuarioEmail: 'u2@empresa.com',
+          proyecto: 'Proyecto Con Documento Nuevo',
+          comentarios: 'Comentario aceptado',
+          estado: 'Pendiente',
+          fechaCreacion: '2026-03-01'
+        }
+      ],
+      documentos: [
+        { id: 'd1', solicitudID: 2, categoria: 'General', nombre: 'doc1.pdf', vistoPorAdmin: false, fechaCarga: '2026-03-10T10:00:00.000Z' }
+      ]
+    });
+
+    render(<AdminDashboard />);
+
+    const projectCells = screen.getAllByText(/Proyecto /i);
+    expect(projectCells[0]).toHaveTextContent('Proyecto Con Documento Nuevo');
   });
 
   it('shows imported metadata in admin detail when present', async () => {
@@ -230,7 +297,7 @@ describe('AdminDashboard', () => {
   it('changes estado to Aceptada with porcentaje', async () => {
     const user = userEvent.setup();
     mockSwalFire.mockResolvedValueOnce({ value: '50', isConfirmed: true });
-    const { container } = render(<AdminDashboard />);
+    render(<AdminDashboard />);
 
     const pendingCells = screen.getAllByText('Proyecto Pendiente');
     const pendingCell = pendingCells.find((cell) => cell.closest('tr'));
@@ -239,11 +306,36 @@ describe('AdminDashboard', () => {
     const trigger = row.querySelector('[data-estado-trigger="true"]');
     expect(trigger).toBeTruthy();
     await user.click(trigger);
-    const menu = row.querySelector('[data-estado-menu="true"]') || container.querySelector('[data-estado-menu="true"]');
+    const menu = document.body.querySelector('[data-estado-menu="true"]');
     expect(menu).toBeTruthy();
     await user.click(within(menu).getByRole('button', { name: 'Aceptada' }));
 
     expect(baseAuthState.updateSolicitudEstado).toHaveBeenCalledWith(1, 'Aceptada', 50);
+  });
+
+  it('changes estado directly from the detail panel', async () => {
+    const user = userEvent.setup();
+    render(<AdminDashboard />);
+
+    const acceptedCells = screen.getAllByText('Proyecto Aceptado');
+    const acceptedCell = acceptedCells.find((cell) => cell.closest('tr'));
+    const row = acceptedCell?.closest('tr');
+    expect(row).toBeTruthy();
+
+    await user.click(row);
+
+    const detailHeader = screen.getByText('Usuario: Usuario Dos').closest('div');
+    expect(detailHeader).toBeTruthy();
+
+    const estadoTrigger = within(detailHeader).getByRole('button', { name: /Aceptada/i });
+    await user.click(estadoTrigger);
+
+    const estadoMenu = document.body.querySelector('[data-estado-menu="true"]');
+    expect(estadoMenu).toBeTruthy();
+
+    await user.click(within(estadoMenu).getByRole('button', { name: 'Rechazada' }));
+
+    expect(baseAuthState.updateSolicitudEstado).toHaveBeenCalledWith(2, 'Rechazada');
   });
 
   it('changes estado from edit modal', async () => {

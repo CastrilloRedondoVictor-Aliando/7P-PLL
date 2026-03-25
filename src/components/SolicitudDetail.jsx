@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import Swal from 'sweetalert2';
-import { Upload, Download, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check, Trash2, MapPin, Building2, Clock, Percent } from 'lucide-react';
+import { Upload, FileSearch, MessageSquare, Send, FileText, Calendar, X, CheckCircle, Edit2, Check, Trash2, MapPin, Building2, Clock, Percent } from 'lucide-react';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import { apiRequest } from '../config/api';
 import { useAuth } from '../hooks/useAuth';
+import { openDocumentPreview } from '../utils/documentPreview';
 
 const SolicitudDetail = ({ 
   solicitud, 
@@ -17,7 +18,7 @@ const SolicitudDetail = ({
   showCloseButton = false,
   onClose,
 }) => {
-  const { user, getAccessToken, getDocumentDownloadUrl, getDocumentPreviewUrl, deleteDocument } = useAuth();
+  const { user, getAccessToken, getDocumentDownloadUrl, getDocumentPreviewUrl, getDocumentPreviewContent, deleteDocument } = useAuth();
   const [newMessage, setNewMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [pendingFiles, setPendingFiles] = useState([]);
@@ -36,6 +37,27 @@ const SolicitudDetail = ({
   const codigoEmpleado = solicitud.codigoEmpleado?.toString().trim();
   const posicion = solicitud.posicion?.toString().trim();
   const politica = solicitud.politica?.toString().trim();
+  const normalizeIdentifier = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
+  const currentUserIdentifiers = new Set(
+    [currentUserId, user?.id, user?.oid, user?.entraIdOID, user?.email]
+      .map(normalizeIdentifier)
+      .filter(Boolean)
+  );
+  const isAdminLikeViewer = user?.rol === 'admin' || user?.rol === 'view';
+
+  const isCurrentUserMessage = (mensaje) => {
+    if (!mensaje) return false;
+
+    if (isAdminLikeViewer) {
+      return mensaje.rol === 'admin' || mensaje.rol === 'view';
+    }
+
+    if (mensaje.rol === 'user') {
+      return true;
+    }
+
+    return currentUserIdentifiers.has(normalizeIdentifier(mensaje?.usuarioID));
+  };
 
   const categorias = [
     { value: 'General', label: 'Principales funciones' },
@@ -246,74 +268,18 @@ const SolicitudDetail = ({
 
   const handleDownloadDocument = async (doc) => {
     try {
-      const [previewUrl, downloadUrl] = await Promise.all([
-        getDocumentPreviewUrl(doc.id),
-        getDocumentDownloadUrl(doc.id)
-      ]);
-
-      const fileName = doc?.nombre || '';
-      const fileType = doc?.tipo || '';
-      const lowerName = fileName.toLowerCase();
-      const isPdf = fileType.includes('pdf') || lowerName.endsWith('.pdf');
-      const isImage = fileType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(lowerName);
-      const isOffice = /\.(docx?|xlsx?|pptx?)$/.test(lowerName) ||
-        /(word|excel|powerpoint)/i.test(fileType);
-      const previewSrc = isOffice
-        ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}&zoom=50`
-        : previewUrl;
-      const canEmbed = isPdf || isImage || isOffice;
-      const isMobile = window.matchMedia('(max-width: 1023px)').matches;
-
-      if (isMobile) {
-        const mobileResult = await Swal.fire({
-          title: doc?.nombre ? `Previsualizar ${doc.nombre}` : 'Previsualizar documento',
-          text: 'En movil la previsualizacion se abre en una nueva pestaña para poder usar los controles.',
-          showCancelButton: true,
-          showDenyButton: true,
-          confirmButtonText: 'Abrir vista',
-          denyButtonText: 'Descargar',
-          cancelButtonText: 'Cerrar',
-          confirmButtonColor: '#1e40af'
-        });
-
-        if (mobileResult.isConfirmed) {
-          window.open(previewSrc, '_blank', 'noopener');
-        } else if (mobileResult.isDenied) {
-          window.open(downloadUrl, '_blank', 'noopener');
-        }
-        return;
-      }
-
-      const result = await Swal.fire({
-        title: doc?.nombre ? `Previsualizar ${doc.nombre}` : 'Previsualizar documento',
-        html: canEmbed
-          ? `
-            <div style="width:100%;height:60vh;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
-              <iframe src="${previewSrc}" title="Previsualizacion" style="width:100%;height:100%;border:0;"></iframe>
-            </div>
-            <p style="margin-top:10px;font-size:14px;color:#6b7280;">Si no puedes ver la previsualizacion, usa el boton Descargar.</p>
-          `
-          : `
-            <div style="padding:18px;border-radius:10px;border:1px solid #e5e7eb;background:#f8fafc;">
-              <p style="font-size:14px;color:#334155;">Este tipo de archivo no admite previsualizacion en el navegador.</p>
-            </div>
-            <p style="margin-top:10px;font-size:14px;color:#6b7280;">Usa el boton Descargar para abrirlo.</p>
-          `,
-        showCancelButton: true,
-        confirmButtonText: 'Descargar',
-        cancelButtonText: 'Cerrar',
-        confirmButtonColor: '#1e40af',
-        width: 900
+      await openDocumentPreview({
+        doc,
+        getDocumentPreviewUrl,
+        getDocumentPreviewContent,
+        getDocumentDownloadUrl,
+        Swal
       });
-
-      if (result.isConfirmed) {
-        window.open(downloadUrl, '_blank', 'noopener');
-      }
     } catch (error) {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'No se pudo descargar el documento',
+        text: 'No se pudo previsualizar el documento',
         confirmButtonColor: '#1e40af'
       });
     }
@@ -616,9 +582,9 @@ const SolicitudDetail = ({
                             type="button"
                             onClick={() => handleDownloadDocument(doc)}
                             className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                            title="Descargar"
+                            title="Previsualizar"
                           >
-                            <Download className="w-5 h-5" />
+                            <FileSearch className="w-5 h-5" />
                           </button>
                           <button
                             type="button"
@@ -675,9 +641,9 @@ const SolicitudDetail = ({
                             type="button"
                             onClick={() => handleDownloadDocument(doc)}
                             className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                            title="Descargar"
+                            title="Previsualizar"
                           >
-                            <Download className="w-5 h-5" />
+                            <FileSearch className="w-5 h-5" />
                           </button>
                           <button
                             type="button"
@@ -734,9 +700,9 @@ const SolicitudDetail = ({
                             type="button"
                             onClick={() => handleDownloadDocument(doc)}
                             className="flex-shrink-0 text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                            title="Descargar"
+                            title="Previsualizar"
                           >
-                            <Download className="w-5 h-5" />
+                            <FileSearch className="w-5 h-5" />
                           </button>
                           <button
                             type="button"
@@ -771,7 +737,7 @@ const SolicitudDetail = ({
               <p className="text-gray-500 text-center py-4">No hay mensajes</p>
             ) : (
               mensajes.map(mensaje => {
-                const isCurrentUser = mensaje.usuarioID === currentUserId;
+                const isCurrentUser = isCurrentUserMessage(mensaje);
                 return (
                   <div
                     key={mensaje.id}

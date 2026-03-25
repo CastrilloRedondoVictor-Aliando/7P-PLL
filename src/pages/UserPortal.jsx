@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { apiRequest } from '../config/api';
 import SolicitudCard from '../components/SolicitudCard';
 import SolicitudDetail from '../components/SolicitudDetail';
+import { triggerBrowserDownload } from '../utils/documentPreview';
 
 const UserPortal = () => {
   const { user, solicitudes, documentos, mensajes, logout, uploadDocument, sendMessage, createSolicitud, markMessagesAsRead, updateSolicitudDescripcion, signalRConnection, getAccessToken } = useAuth();
@@ -43,6 +44,19 @@ const UserPortal = () => {
     return hasUnread;
   });
 
+  const getSolicitudSortDate = (solicitud) => {
+    const latestDocumentDate = documentos
+      .filter((doc) => doc.solicitudID === solicitud.id)
+      .map((doc) => doc.createdAt || doc.fechaCarga)
+      .filter(Boolean)
+      .reduce((latest, current) => {
+        if (!latest) return current;
+        return new Date(current) > new Date(latest) ? current : latest;
+      }, null);
+
+    return latestDocumentDate || solicitud.fechaUltimoDocumento || solicitud.fechaCreacion;
+  };
+
   // Aplicar búsqueda y filtros
   const filteredSolicitudes = userSolicitudes.filter(s => {
     const matchesSearch = s.proyecto.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -58,7 +72,7 @@ const UserPortal = () => {
     if (endDate) endDate.setHours(0, 0, 0, 0);
     const matchesDate = !targetDate || (startDate && endDate && startDate <= targetDate && endDate >= targetDate);
     return matchesSearch && matchesFilter && matchesDate;
-  }).sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
+  }).sort((a, b) => new Date(getSolicitudSortDate(b)) - new Date(getSolicitudSortDate(a)));
 
   const totalPages = Math.max(1, Math.ceil(filteredSolicitudes.length / itemsPerPage));
   const pagedSolicitudes = filteredSolicitudes.slice(
@@ -74,6 +88,9 @@ const UserPortal = () => {
   const solicitudMensajes = selectedSolicitud
     ? mensajes.filter(m => m.solicitudID === selectedSolicitud.id)
     : [];
+  const activeSolicitudId = selectedSolicitud && (!isMobile || isDetailOpen)
+    ? selectedSolicitud.id
+    : null;
 
   useEffect(() => {
     if (selectedSolicitud) {
@@ -82,46 +99,69 @@ const UserPortal = () => {
   }, [selectedSolicitud, markMessagesAsRead]);
 
   useEffect(() => {
-    const joinAllGroups = async () => {
-      if (!userSolicitudes.length) return;
+    let isCancelled = false;
+
+    const syncSelectedGroup = async () => {
+      const joinedSolicitudId = Array.from(joinedGroupsRef.current)[0] ?? null;
+
+      if (activeSolicitudId === joinedSolicitudId) {
+        return;
+      }
+
       try {
         const token = await getAccessToken();
-        const joinPromises = userSolicitudes.map(async (sol) => {
-          if (joinedGroupsRef.current.has(sol.id)) return;
-          await apiRequest('/signalr/join-group', {
+
+        if (joinedSolicitudId !== null) {
+          await apiRequest('/signalr/leave-group', {
             method: 'POST',
-            body: JSON.stringify({ solicitudID: sol.id }),
+            body: JSON.stringify({ solicitudID: joinedSolicitudId }),
             token
           });
-          joinedGroupsRef.current.add(sol.id);
+          joinedGroupsRef.current.delete(joinedSolicitudId);
+        }
+
+        if (isCancelled || activeSolicitudId === null || activeSolicitudId === undefined) {
+          return;
+        }
+
+        await apiRequest('/signalr/join-group', {
+          method: 'POST',
+          body: JSON.stringify({ solicitudID: activeSolicitudId }),
+          token
         });
-        await Promise.all(joinPromises);
+        joinedGroupsRef.current.add(activeSolicitudId);
       } catch (error) {
       }
     };
 
-    joinAllGroups();
+    syncSelectedGroup();
 
     return () => {
-      const leaveAllGroups = async () => {
-        if (joinedGroupsRef.current.size === 0) return;
+      isCancelled = true;
+    };
+  }, [activeSolicitudId, getAccessToken]);
+
+  useEffect(() => {
+    return () => {
+      const leaveJoinedGroup = async () => {
+        const joinedSolicitudId = Array.from(joinedGroupsRef.current)[0];
+        if (joinedSolicitudId === undefined) return;
+
         try {
           const token = await getAccessToken();
-          const leavePromises = Array.from(joinedGroupsRef.current).map(async (solicitudID) => {
-            await apiRequest('/signalr/leave-group', {
-              method: 'POST',
-              body: JSON.stringify({ solicitudID }),
-              token
-            });
+          await apiRequest('/signalr/leave-group', {
+            method: 'POST',
+            body: JSON.stringify({ solicitudID: joinedSolicitudId }),
+            token
           });
-          await Promise.all(leavePromises);
           joinedGroupsRef.current.clear();
         } catch (error) {
         }
       };
-      leaveAllGroups();
+
+      leaveJoinedGroup();
     };
-  }, [userSolicitudes, getAccessToken]);
+  }, [getAccessToken]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 1023px)');
@@ -254,10 +294,13 @@ const UserPortal = () => {
     });
   };
 
-  const GUIA_USO_URL = 'https://stapp7ppro01.blob.core.windows.net/estaticos/guia_uso_7P_PLL.docx?sp=r&st=2026-03-23T15:36:32Z&se=2026-03-23T23:51:32Z&spr=https&sv=2024-11-04&sr=b&sig=kzidDpegRjWH2cvpXRe4GKW%2BbiJ2zPiPk1XAJyVrDNc%3D';
-  const POLITICAS_URL = 'https://stapp7ppro01.blob.core.windows.net/estaticos/Pol%C3%ADtica%207P%20TR.pdf?sp=r&st=2026-03-23T14:15:02Z&se=2026-03-23T22:30:02Z&spr=https&sv=2024-11-04&sr=b&sig=apv6jw%2FqY8zGGwJHJ9KpQBiH7IBLj1a1K6qXoZ8B40k%3D';
+  const openDocumentViewer = async ({ title, loadUrls, mobileConfirmText, useOfficeEmbed = false }) => {
+    const token = await getAccessToken();
+    const { previewUrl: rawPreviewUrl, downloadUrl } = await loadUrls(token);
+    const previewUrl = useOfficeEmbed
+      ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(rawPreviewUrl)}&zoom=50`
+      : rawPreviewUrl;
 
-  const openDocumentViewer = async ({ title, absoluteUrl, previewUrl, mobileConfirmText }) => {
     const isMobileView = window.matchMedia('(max-width: 1023px)').matches;
 
     if (isMobileView) {
@@ -275,7 +318,7 @@ const UserPortal = () => {
       if (mobileResult.isConfirmed) {
         window.open(previewUrl, '_blank', 'noopener');
       } else if (mobileResult.isDenied) {
-        window.open(absoluteUrl, '_blank', 'noopener');
+        await triggerBrowserDownload(downloadUrl, title);
       }
       return;
     }
@@ -296,7 +339,7 @@ const UserPortal = () => {
     });
 
     if (result.isConfirmed) {
-      window.open(absoluteUrl, '_blank', 'noopener');
+      await triggerBrowserDownload(downloadUrl, title);
     }
   };
 
@@ -323,13 +366,21 @@ const UserPortal = () => {
       });
 
       if (selectionResult.isConfirmed) {
-        const guiaUsoAbsoluteUrl = GUIA_USO_URL;
-        const officePreviewUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(guiaUsoAbsoluteUrl)}&zoom=50`;
         await openDocumentViewer({
           title: 'Guia de uso',
-          absoluteUrl: guiaUsoAbsoluteUrl,
-          previewUrl: officePreviewUrl,
-          mobileConfirmText: 'Abrir guia'
+          loadUrls: async (token) => {
+            const [previewData, downloadData] = await Promise.all([
+              apiRequest('/documentos/guia-uso/preview', { token }),
+              apiRequest('/documentos/guia-uso/download', { token })
+            ]);
+
+            return {
+              previewUrl: previewData.url,
+              downloadUrl: downloadData.url
+            };
+          },
+          mobileConfirmText: 'Abrir guia',
+          useOfficeEmbed: true
         });
         return;
       }
@@ -337,9 +388,18 @@ const UserPortal = () => {
       if (selectionResult.isDenied) {
         await openDocumentViewer({
           title: 'Politica',
-          absoluteUrl: POLITICAS_URL,
-          previewUrl: POLITICAS_URL,
-          mobileConfirmText: 'Abrir política'
+          loadUrls: async (token) => {
+            const [previewData, downloadData] = await Promise.all([
+              apiRequest('/documentos/politica/preview', { token }),
+              apiRequest('/documentos/politica/download', { token })
+            ]);
+
+            return {
+              previewUrl: previewData.url,
+              downloadUrl: downloadData.url
+            };
+          },
+          mobileConfirmText: 'Abrir politica'
         });
       }
     } catch (error) {

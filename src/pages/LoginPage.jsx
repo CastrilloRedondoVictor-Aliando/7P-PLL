@@ -22,7 +22,7 @@ const LoginPage = () => {
       className="relative min-h-screen overflow-hidden px-4"
       style={{
         backgroundImage: `url("${backgroundImage}")`,
-        backgroundPosition: 'center',
+        backgroundPosition: 'center top',
         backgroundRepeat: 'no-repeat',
         backgroundSize: 'cover'
       }}
@@ -35,7 +35,7 @@ const LoginPage = () => {
             <LogIn className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">7P-PLL</h1>
-          <p className="text-gray-600 mt-2">Portal de Gestión de Solicitudes</p>
+          <p className="text-gray-600 mt-2">Portal de Gestión Documental</p>
         </div>
 
         <div className="space-y-6">
