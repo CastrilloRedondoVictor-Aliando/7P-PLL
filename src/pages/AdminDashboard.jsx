@@ -1397,7 +1397,7 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
       <header className="bg-primary text-white shadow-lg fixed top-0 inset-x-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="relative flex items-center justify-between">
             <div className="flex items-center h-7 sm:h-8 lg:h-9">
               <img
@@ -1406,7 +1406,7 @@ const AdminDashboard = () => {
                 className="h-full w-auto max-w-[140px] sm:max-w-[170px] lg:max-w-[190px] object-contain"
               />
             </div>
-            <div className="flex items-center gap-2 lg:hidden">
+            <div className="flex items-center gap-2 xl:hidden">
               <button
                 type="button"
                 ref={mobileMessagesButtonRef}
@@ -1451,7 +1451,7 @@ const AdminDashboard = () => {
             {showMessagesDropdown && (
               <div
                 ref={mobileMessagesDropdownRef}
-                className={`lg:hidden absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
+                className={`xl:hidden absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
                   isMessagesDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
                 }`}
               >
@@ -1495,7 +1495,7 @@ const AdminDashboard = () => {
             {showDocsDropdown && (
               <div
                 ref={mobileDocsDropdownRef}
-                className={`lg:hidden absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
+                className={`xl:hidden absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
                   isDocsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
                 }`}
               >
@@ -1535,13 +1535,13 @@ const AdminDashboard = () => {
             )}
           </div>
           <div
-            className={`flex flex-col gap-3 transition-all duration-300 ease-in-out overflow-hidden lg:flex-row lg:items-center lg:justify-end lg:space-x-4 lg:overflow-visible lg:transition-none lg:max-h-none lg:opacity-100 lg:translate-y-0 lg:pointer-events-auto ${
+            className={`flex flex-col gap-3 transition-all duration-300 ease-in-out overflow-hidden xl:flex-row xl:items-center xl:justify-end xl:space-x-4 xl:overflow-visible xl:transition-none xl:max-h-none xl:opacity-100 xl:translate-y-0 xl:pointer-events-auto ${
               isMobileMenuOpen
                 ? 'max-h-96 opacity-100 translate-y-0'
                 : 'max-h-0 opacity-0 -translate-y-1 pointer-events-none'
             }`}
           >
-            <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 xl:gap-3 w-full lg:w-auto">
+            <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 xl:gap-3 w-full xl:w-auto">
               {!isViewRole && (
                 <button
                   onClick={() => setIsCreateModalOpen(true)}
@@ -1703,7 +1703,7 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 sm:justify-start w-full lg:w-auto">
+            <div className="flex items-center justify-between gap-3 sm:justify-start w-full xl:w-auto">
               <div className="text-left sm:text-right min-w-0">
                 <p className="font-semibold break-all sm:break-normal max-w-[70vw] sm:max-w-none">
                   {user.email}

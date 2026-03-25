@@ -134,6 +134,29 @@ describe('UserPortal', () => {
     });
   });
 
+  it('keeps compact header actions available on intermediate widths', async () => {
+    const user = userEvent.setup();
+    window.matchMedia.mockImplementation((query) => ({
+      matches: query.includes('1279px'),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }));
+
+    render(<UserPortal />);
+
+    expect(screen.getByTitle('Mensajes sin leer')).toBeInTheDocument();
+    expect(screen.getByTitle('Guia de uso')).toBeInTheDocument();
+    expect(screen.getByTitle('Incidencias')).toBeInTheDocument();
+
+    await user.click(screen.getByTitle('Mensajes sin leer'));
+    expect(screen.getByText(/Mensajes sin leer/i)).toBeInTheDocument();
+  });
+
   it('orders user solicitudes by most recent uploaded document', () => {
     mockUseAuth.mockReturnValue({
       ...baseAuthState,
