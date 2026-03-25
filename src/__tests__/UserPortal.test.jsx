@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { act } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { act } from 'react-dom/test-utils';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import UserPortal from '../pages/UserPortal';
@@ -88,8 +87,8 @@ describe('UserPortal', () => {
     vi.clearAllMocks();
     mockUseAuth.mockReturnValue(baseAuthState);
     mockSwalFire.mockResolvedValue({ isConfirmed: false, isDenied: false });
-    vi.spyOn(window, 'open').mockImplementation(() => null);
-    window.matchMedia.mockImplementation((query) => ({
+    vi.spyOn(globalThis.window, 'open').mockImplementation(() => null);
+    globalThis.window.matchMedia.mockImplementation((query) => ({
       matches: false,
       media: query,
       onchange: null,
@@ -136,7 +135,7 @@ describe('UserPortal', () => {
 
   it('keeps compact header actions available on intermediate widths', async () => {
     const user = userEvent.setup();
-    window.matchMedia.mockImplementation((query) => ({
+    globalThis.window.matchMedia.mockImplementation((query) => ({
       matches: query.includes('1279px'),
       media: query,
       onchange: null,
@@ -232,7 +231,7 @@ describe('UserPortal', () => {
     expect(screen.getByText(/Mensajes sin leer/i)).toBeInTheDocument();
 
     const projectItems = screen.getAllByText('Proyecto Uno');
-    await user.click(projectItems[projectItems.length - 1]);
+    await user.click(projectItems.at(-1));
     expect(screen.getByText('Detalle Solicitud')).toBeInTheDocument();
   });
 
@@ -278,7 +277,7 @@ describe('UserPortal', () => {
 
   it('opens and closes mobile detail popup', async () => {
     vi.useFakeTimers();
-    window.matchMedia.mockImplementation((query) => ({
+    globalThis.window.matchMedia.mockImplementation((query) => ({
       matches: true,
       media: query,
       onchange: null,
