@@ -692,8 +692,7 @@ export const AuthProvider = ({ children }) => {
         method: 'PUT',
         body: JSON.stringify({
           proyecto: nuevoTitulo,
-          descripcion: solicitudActual.comentarios,
-          estado: solicitudActual.estado
+          descripcion: solicitudActual.comentarios
         }),
         token
       });
@@ -742,8 +741,7 @@ export const AuthProvider = ({ children }) => {
         method: 'PUT',
         body: JSON.stringify({
           proyecto: solicitudActual.proyecto,
-           descripcion: nuevaDescripcion,
-          estado: solicitudActual.estado
+          descripcion: nuevaDescripcion
         }),
         token
       });

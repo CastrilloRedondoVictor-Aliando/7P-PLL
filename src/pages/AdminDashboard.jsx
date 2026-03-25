@@ -12,7 +12,7 @@ import EditSolicitudModal from '../components/EditSolicitudModal';
 import { openDocumentPreview } from '../utils/documentPreview';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudCompleta, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentPreviewContent, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudCompleta, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentPreviewContent, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken, isSignalRConnected } = useAuth();
   const isViewRole = user?.rol === 'view';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
@@ -387,9 +387,19 @@ const AdminDashboard = () => {
   }, [selectedSolicitud, solicitudes]);
 
   useEffect(() => {
+    if (!isSignalRConnected) {
+      joinedGroupsRef.current.clear();
+    }
+  }, [isSignalRConnected]);
+
+  useEffect(() => {
     let isCancelled = false;
 
     const syncSelectedGroup = async () => {
+      if (!isSignalRConnected) {
+        return;
+      }
+
       const selectedSolicitudId = selectedSolicitud?.id;
       const joinedSolicitudId = Array.from(joinedGroupsRef.current)[0] ?? null;
 
@@ -428,7 +438,7 @@ const AdminDashboard = () => {
     return () => {
       isCancelled = true;
     };
-  }, [selectedSolicitud?.id, getAccessToken]);
+  }, [selectedSolicitud?.id, getAccessToken, isSignalRConnected]);
 
   useEffect(() => {
     return () => {

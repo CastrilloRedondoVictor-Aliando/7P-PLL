@@ -121,6 +121,7 @@ const baseAuthState = {
     { id: 'm1', solicitudID: 2, usuarioID: 'u2', contenido: 'Hola', rol: 'user', leidoPorAdmin: false, fechaEnvio: '2026-03-04' }
   ],
   loading: false,
+  isSignalRConnected: true,
   logout: vi.fn(),
   updateSolicitudEstado: vi.fn(),
   updateSolicitudTitulo: vi.fn(),
