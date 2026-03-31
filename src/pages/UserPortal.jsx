@@ -470,39 +470,43 @@ const UserPortal = () => {
               />
             </div>
             <div className="flex items-center gap-2 xl:hidden">
-              <button
-                type="button"
-                ref={mobileNotificationsButtonRef}
-                onClick={toggleNotificationsDropdown}
-                className="relative bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                title="Mensajes sin leer"
-                aria-label="Mensajes sin leer"
-              >
-                <Bell className="w-5 h-5" />
-                {unreadMessages > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {unreadMessages}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={handleGuiaUsoClick}
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                title="Guia de uso"
-                aria-label="Guia de uso"
-              >
-                <Info className="w-5 h-5" />
-              </button>
-              <button
-                type="button"
-                onClick={handleIncidenciasClick}
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                title="Incidencias"
-                aria-label="Incidencias"
-              >
-                <Wrench className="w-5 h-5" />
-              </button>
+              {isCompactHeader && (
+                <>
+                  <button
+                    type="button"
+                    ref={mobileNotificationsButtonRef}
+                    onClick={toggleNotificationsDropdown}
+                    className="relative bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                    title="Mensajes sin leer"
+                    aria-label="Mensajes sin leer"
+                  >
+                    <Bell className="w-5 h-5" />
+                    {unreadMessages > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        {unreadMessages}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGuiaUsoClick}
+                    className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                    title="Guia de uso"
+                    aria-label="Guia de uso"
+                  >
+                    <Info className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleIncidenciasClick}
+                    className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                    title="Incidencias"
+                    aria-label="Incidencias"
+                  >
+                    <Wrench className="w-5 h-5" />
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
@@ -565,86 +569,90 @@ const UserPortal = () => {
           >
             <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
               {/* Badge de mensajes no leídos (solo escritorio) */}
-              <div className="relative hidden xl:block">
-                <button 
-                  ref={notificationsButtonRef}
-                  onClick={toggleNotificationsDropdown}
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                  title="Mensajes sin leer"
-                >
-                  <Bell className="w-5 h-5" />
-                </button>
-                {unreadMessages > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {unreadMessages}
-                  </span>
-                )}
+              {!isCompactHeader && (
+                <>
+                  <div className="relative hidden xl:block">
+                    <button 
+                      ref={notificationsButtonRef}
+                      onClick={toggleNotificationsDropdown}
+                      className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                      title="Mensajes sin leer"
+                    >
+                      <Bell className="w-5 h-5" />
+                    </button>
+                    {unreadMessages > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        {unreadMessages}
+                      </span>
+                    )}
 
-                {/* Dropdown de notificaciones */}
-                {showNotificationsDropdown && !isCompactHeader && (
-                  <div
-                    ref={notificationsDropdownRef}
-                    className={`absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
-                      isNotificationsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
-                    }`}
-                  >
-                    <div className="p-3 border-b border-gray-200 bg-gray-50">
-                      <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
-                    </div>
-                    {solicitudesWithUnreadMessages.length === 0 ? (
-                      <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
-                    ) : (
-                      solicitudesWithUnreadMessages.map(sol => {
-                        const unreadCount = mensajes.filter(m => 
-                          m.solicitudID === sol.id && !m.leidoPorUser && m.rol === 'admin'
-                        ).length;
-                        return (
-                          <div
-                            key={sol.id}
-                            onClick={() => {
-                              setSelectedSolicitud(sol);
-                              setShowNotificationsDropdown(false);
-                            }}
-                            className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                          >
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
-                                <p className="text-xs text-gray-600 mt-1">Estado: {sol.estado}</p>
+                    {/* Dropdown de notificaciones */}
+                    {showNotificationsDropdown && !isCompactHeader && (
+                      <div
+                        ref={notificationsDropdownRef}
+                        className={`absolute right-0 top-12 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto ${
+                          isNotificationsDropdownClosing ? 'animate-fade-out' : 'animate-fade-in'
+                        }`}
+                      >
+                        <div className="p-3 border-b border-gray-200 bg-gray-50">
+                          <h3 className="font-semibold text-gray-900">Mensajes sin leer ({unreadMessages})</h3>
+                        </div>
+                        {solicitudesWithUnreadMessages.length === 0 ? (
+                          <p className="text-gray-500 text-center py-6 text-sm">No hay mensajes nuevos</p>
+                        ) : (
+                          solicitudesWithUnreadMessages.map(sol => {
+                            const unreadCount = mensajes.filter(m => 
+                              m.solicitudID === sol.id && !m.leidoPorUser && m.rol === 'admin'
+                            ).length;
+                            return (
+                              <div
+                                key={sol.id}
+                                onClick={() => {
+                                  setSelectedSolicitud(sol);
+                                  setShowNotificationsDropdown(false);
+                                }}
+                                className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <p className="font-medium text-gray-900 text-sm">{sol.proyecto}</p>
+                                    <p className="text-xs text-gray-600 mt-1">Estado: {sol.estado}</p>
+                                  </div>
+                                  <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
+                                    {unreadCount}
+                                  </span>
+                                </div>
                               </div>
-                              <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-2">
-                                {unreadCount}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })
+                            );
+                          })
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              <div className="relative hidden xl:block">
-                <button
-                  type="button"
-                  onClick={handleGuiaUsoClick}
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                  title="Guia de uso"
-                >
-                  <Info className="w-5 h-5" />
-                </button>
-              </div>
+                  <div className="relative hidden xl:block">
+                    <button
+                      type="button"
+                      onClick={handleGuiaUsoClick}
+                      className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                      title="Guia de uso"
+                    >
+                      <Info className="w-5 h-5" />
+                    </button>
+                  </div>
 
-              <div className="relative hidden xl:block">
-                <button
-                  type="button"
-                  onClick={handleIncidenciasClick}
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
-                  title="Incidencias"
-                >
-                  <Wrench className="w-5 h-5" />
-                </button>
-              </div>
+                  <div className="relative hidden xl:block">
+                    <button
+                      type="button"
+                      onClick={handleIncidenciasClick}
+                      className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-colors"
+                      title="Incidencias"
+                    >
+                      <Wrench className="w-5 h-5" />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex items-center justify-between gap-3 sm:justify-start w-full xl:w-auto">
