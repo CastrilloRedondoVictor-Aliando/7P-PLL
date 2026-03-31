@@ -6,6 +6,14 @@ import {AuthContext } from './AuthContextDefinition';
 import { apiRequest, isAuthorizationError } from '../config/api';
 import { loginRequest, hasApiScope } from '../config/msalConfig';
 
+const mergeSolicitudMessages = (previousMessages, solicitudID, nextMessages) => {
+  const solicitudKey = String(solicitudID);
+  return [
+    ...previousMessages.filter((message) => String(message?.solicitudID) !== solicitudKey),
+    ...nextMessages
+  ];
+};
+
 export const AuthProvider = ({ children }) => {
   const { instance, accounts } = useMsal();
   const isAuthDebugEnabled = import.meta.env.VITE_AUTH_DEBUG === 'true';
@@ -266,6 +274,18 @@ export const AuthProvider = ({ children }) => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refreshSolicitudMensajes = async (solicitudID) => {
+    try {
+      const token = await getAccessToken();
+      const mensajesData = await apiRequest(`/mensajes?solicitudID=${encodeURIComponent(solicitudID)}`, { token });
+      setMensajes((prev) => mergeSolicitudMessages(prev, solicitudID, mensajesData));
+      return mensajesData;
+    } catch (error) {
+      console.warn('[AuthContext/refreshSolicitudMensajes] No se pudieron recargar los mensajes de la solicitud', error);
+      return [];
     }
   };
 
@@ -679,6 +699,46 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const changeUserEmail = async (currentEmail, newEmail) => {
+    const token = await getAccessToken();
+    const data = await apiRequest('/auth/change-user-email', {
+      method: 'POST',
+      body: JSON.stringify({ currentEmail, newEmail }),
+      token
+    });
+
+    const updatedSolicitudIds = new Set(
+      (Array.isArray(data?.updatedSolicitudIds) ? data.updatedSolicitudIds : [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id))
+    );
+    const resolvedNewEmail = (data?.newEmail || newEmail || '').toString().trim().toLowerCase();
+
+    if (updatedSolicitudIds.size > 0 && resolvedNewEmail) {
+      setSolicitudes((prev) =>
+        prev.map((solicitud) => {
+          if (!updatedSolicitudIds.has(Number(solicitud.id))) {
+            return solicitud;
+          }
+
+          const currentDisplay = (solicitud.usuarioNombre || '').toString().trim().toLowerCase();
+          const currentIdentifier = (solicitud.usuarioID || '').toString().trim().toLowerCase();
+          const currentEmailValue = (solicitud.usuarioEmail || '').toString().trim().toLowerCase();
+          const shouldReplaceDisplay = currentDisplay === currentIdentifier || currentDisplay === currentEmailValue;
+
+          return {
+            ...solicitud,
+            usuarioID: resolvedNewEmail,
+            usuarioEmail: resolvedNewEmail,
+            usuarioNombre: shouldReplaceDisplay ? resolvedNewEmail : solicitud.usuarioNombre
+          };
+        })
+      );
+    }
+
+    return data;
+  };
+
   const updateSolicitudTitulo = async (solicitudID, nuevoTitulo) => {
     const solicitudActual = solicitudes.find(s => s.id === solicitudID);
     
@@ -876,8 +936,10 @@ export const AuthProvider = ({ children }) => {
     createSolicitud,
     markMessagesAsRead,
     markDocsAsViewed,
+    refreshSolicitudMensajes,
     loadData,
     resolveUsersByEmails,
+    changeUserEmail,
     handleLoginSuccess,
     isInitializing
   };

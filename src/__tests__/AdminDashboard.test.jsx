@@ -134,9 +134,18 @@ const baseAuthState = {
   createSolicitud: vi.fn().mockResolvedValue({ id: 10, usuarioNombre: 'Nuevo', usuarioEmail: 'nuevo@empresa.com' }),
   markMessagesAsRead: vi.fn(),
   markDocsAsViewed: vi.fn(),
+  refreshSolicitudMensajes: vi.fn().mockResolvedValue([]),
   resolveUsersByEmails: vi.fn().mockResolvedValue([
     { oid: 'oid-1', nombre: 'Usuario Import', email: 'import@empresa.com' }
   ]),
+  changeUserEmail: vi.fn().mockResolvedValue({
+    currentEmail: 'usuario@empresa.com',
+    newEmail: 'usuario@grupotr.es',
+    updatedUsers: 1,
+    updatedUserIds: [1],
+    updatedSolicitudes: 2,
+    updatedSolicitudIds: [1, 2]
+  }),
   getDocumentPreviewUrl: vi.fn().mockResolvedValue('https://example.com/preview'),
   getDocumentDownloadUrl: vi.fn().mockResolvedValue('https://example.com/doc'),
   deleteDocument: vi.fn(),
@@ -208,6 +217,25 @@ describe('AdminDashboard', () => {
         body: JSON.stringify({ solicitudID: 1 }),
         token: 'token'
       }));
+    });
+  });
+
+  it('does one mensajes refresh when admin opens a solicitud detail', async () => {
+    const user = userEvent.setup();
+    render(<AdminDashboard />);
+
+    const acceptedCells = screen.getAllByText('Proyecto Aceptado');
+    const acceptedCell = acceptedCells.find((cell) => cell.closest('tr'));
+    const row = acceptedCell?.closest('tr');
+    expect(row).toBeTruthy();
+
+    await user.click(row);
+
+    await waitFor(() => {
+      expect(baseAuthState.refreshSolicitudMensajes).toHaveBeenCalledTimes(1);
+      expect(baseAuthState.refreshSolicitudMensajes).toHaveBeenCalledWith(2);
+      expect(baseAuthState.markMessagesAsRead).toHaveBeenCalledTimes(1);
+      expect(baseAuthState.markMessagesAsRead).toHaveBeenCalledWith(2);
     });
   });
 
@@ -631,6 +659,46 @@ describe('AdminDashboard', () => {
     expect(mockSwalFire).toHaveBeenCalledWith(expect.objectContaining({
       icon: 'warning'
     }));
+  });
+
+  it('updates user email from the admin panel', async () => {
+    const user = userEvent.setup();
+    render(<AdminDashboard />);
+
+    await user.click(screen.getByRole('button', { name: 'Abrir modal de correccion de email' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Corregir email de usuario' });
+    await user.type(within(dialog).getByPlaceholderText('ejemplo@dominio-antiguo.com'), 'usuario@empresa.com');
+    await user.type(within(dialog).getByPlaceholderText('ejemplo@grupotr.es'), 'usuario@grupotr.es');
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar cambio' }));
+
+    await waitFor(() => {
+      expect(baseAuthState.changeUserEmail).toHaveBeenCalledWith('usuario@empresa.com', 'usuario@grupotr.es');
+      expect(mockSwalFire).toHaveBeenCalledWith(expect.objectContaining({
+        icon: 'success',
+        title: 'Email actualizado'
+      }));
+    });
+  });
+
+  it('allows replacing the full user email from the admin panel', async () => {
+    const user = userEvent.setup();
+    render(<AdminDashboard />);
+
+    await user.click(screen.getByRole('button', { name: 'Abrir modal de correccion de email' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Corregir email de usuario' });
+    await user.type(within(dialog).getByPlaceholderText('ejemplo@dominio-antiguo.com'), 'usuario@empresa.com');
+    await user.type(within(dialog).getByPlaceholderText('ejemplo@grupotr.es'), 'otro@grupotr.es');
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar cambio' }));
+
+    await waitFor(() => {
+      expect(baseAuthState.changeUserEmail).toHaveBeenCalledWith('usuario@empresa.com', 'otro@grupotr.es');
+      expect(mockSwalFire).toHaveBeenCalledWith(expect.objectContaining({
+        icon: 'success',
+        title: 'Email actualizado'
+      }));
+    });
   });
 
   it('renders view role without admin actions', () => {

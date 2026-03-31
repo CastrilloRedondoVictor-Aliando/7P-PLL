@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, FileText, Download, FileSearch, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown, Upload, Menu, Plane, X } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, AlertCircle, Clock, Layers, Send, Plus, Bell, Edit2, FileText, Download, FileSearch, ChevronDown, Trash2, MapPin, Building2, Calendar, Percent, FileDown, Upload, Menu, Plane, X, Users } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import JSZip from 'jszip';
 import Swal from 'sweetalert2';
@@ -9,10 +9,11 @@ import { API_BASE_URL, apiRequest, isAuthorizationError } from '../config/api';
 import { formatDate, getEstadoColor } from '../utils/helpers';
 import CreateSolicitudModal from '../components/CreateSolicitudModal';
 import EditSolicitudModal from '../components/EditSolicitudModal';
+import ChangeUserEmailModal from '../components/ChangeUserEmailModal';
 import { openDocumentPreview } from '../utils/documentPreview';
 
 const AdminDashboard = () => {
-  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudCompleta, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, resolveUsersByEmails, getDocumentPreviewUrl, getDocumentPreviewContent, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken, isSignalRConnected } = useAuth();
+  const { user, solicitudes, documentos, mensajes, loading, logout, updateSolicitudEstado, updateSolicitudCompleta, sendMessage, createSolicitud, markMessagesAsRead, markDocsAsViewed, refreshSolicitudMensajes, resolveUsersByEmails, changeUserEmail, getDocumentPreviewUrl, getDocumentPreviewContent, getDocumentDownloadUrl, deleteDocument, deleteSolicitud, getAccessToken, isSignalRConnected } = useAuth();
   const isViewRole = user?.rol === 'view';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
@@ -21,6 +22,7 @@ const AdminDashboard = () => {
   const [newMessage, setNewMessage] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isChangeEmailModalOpen, setIsChangeEmailModalOpen] = useState(false);
   const [showMessagesDropdown, setShowMessagesDropdown] = useState(false);
   const [showDocsDropdown, setShowDocsDropdown] = useState(false);
   const messagesContainerRef = useRef(null);
@@ -32,6 +34,9 @@ const AdminDashboard = () => {
   const [openEstadoId, setOpenEstadoId] = useState(null);
   const [estadoMenuPosition, setEstadoMenuPosition] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [currentEmailDraft, setCurrentEmailDraft] = useState('');
+  const [newEmailDraft, setNewEmailDraft] = useState('');
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showLoadingScreen, setShowLoadingScreen] = useState(loading);
   const [isLoadingClosing, setIsLoadingClosing] = useState(false);
@@ -48,6 +53,8 @@ const AdminDashboard = () => {
   const mobileDocsDropdownRef = useRef(null);
   const estadoTriggerRefs = useRef(new Map());
   const joinedGroupsRef = useRef(new Set());
+  const fetchedMensajesSolicitudIdRef = useRef(null);
+  const markedReadSolicitudIdRef = useRef(null);
   const importInputRef = useRef(null);
   const itemsPerPage = 10;
   const normalizeIdentifier = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
@@ -161,6 +168,9 @@ const AdminDashboard = () => {
     const normalized = proyecto?.toString().trim();
     return normalized ? normalized : 'Proyecto sin nombre';
   };
+
+  const normalizeEmailInput = (value) => (value || '').toString().trim().toLowerCase();
+  const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmailInput(value));
 
   const estadoFiltroStyles = {
     Todos: { hover: 'hover:bg-blue-50', selected: 'bg-blue-50 ring-1 ring-blue-100' },
@@ -366,10 +376,22 @@ const AdminDashboard = () => {
   }, [solicitudMensajes.length, selectedSolicitud?.id]);
 
   useEffect(() => {
-    if (selectedSolicitud) {
+    if (!selectedSolicitud?.id) {
+      fetchedMensajesSolicitudIdRef.current = null;
+      markedReadSolicitudIdRef.current = null;
+      return;
+    }
+
+    if (user?.rol === 'admin' && fetchedMensajesSolicitudIdRef.current !== selectedSolicitud.id) {
+      fetchedMensajesSolicitudIdRef.current = selectedSolicitud.id;
+      refreshSolicitudMensajes(selectedSolicitud.id);
+    }
+
+    if (markedReadSolicitudIdRef.current !== selectedSolicitud.id) {
+      markedReadSolicitudIdRef.current = selectedSolicitud.id;
       markMessagesAsRead(selectedSolicitud.id);
     }
-  }, [selectedSolicitud, markMessagesAsRead]);
+  }, [selectedSolicitud?.id, user?.rol, refreshSolicitudMensajes, markMessagesAsRead]);
 
   useEffect(() => {
     if (!selectedSolicitud) return;
@@ -662,6 +684,77 @@ const AdminDashboard = () => {
       timer: 3500,
       showConfirmButton: false
     });
+  };
+
+  const handleChangeUserEmail = async () => {
+    const normalizedCurrentEmail = normalizeEmailInput(currentEmailDraft);
+    const normalizedNewEmail = normalizeEmailInput(newEmailDraft);
+
+    if (!normalizedCurrentEmail || !normalizedNewEmail) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Emails requeridos',
+        text: 'Debes indicar el email actual y el nuevo email.',
+        confirmButtonColor: '#1e40af'
+      });
+      return;
+    }
+
+    if (!isValidEmail(normalizedCurrentEmail) || !isValidEmail(normalizedNewEmail)) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Emails no validos',
+        text: 'Revisa ambos correos antes de guardar el cambio.',
+        confirmButtonColor: '#1e40af'
+      });
+      return;
+    }
+
+    if (normalizedCurrentEmail === normalizedNewEmail) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Sin cambios',
+        text: 'El nuevo email debe ser distinto al actual.',
+        confirmButtonColor: '#1e40af'
+      });
+      return;
+    }
+
+    try {
+      setIsUpdatingEmail(true);
+      const result = await changeUserEmail(normalizedCurrentEmail, normalizedNewEmail);
+
+      setCurrentEmailDraft('');
+      setNewEmailDraft('');
+      setIsChangeEmailModalOpen(false);
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Email actualizado',
+        text: `Se actualizo ${result.updatedUsers} usuario${result.updatedUsers === 1 ? '' : 's'} y ${result.updatedSolicitudes} solicitud${result.updatedSolicitudes === 1 ? '' : 'es'}.`,
+        confirmButtonColor: '#1e40af'
+      });
+    } catch (error) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo actualizar el email',
+        text: error?.payload?.error || error?.message || 'Intentalo de nuevo.',
+        confirmButtonColor: '#1e40af'
+      });
+    } finally {
+      setIsUpdatingEmail(false);
+    }
+  };
+
+  const handleOpenChangeEmailModal = () => {
+    setIsChangeEmailModalOpen(true);
+  };
+
+  const handleCloseChangeEmailModal = () => {
+    if (isUpdatingEmail) return;
+    setIsChangeEmailModalOpen(false);
+    setCurrentEmailDraft('');
+    setNewEmailDraft('');
   };
 
   const handleSendMessage = () => {
@@ -1587,6 +1680,16 @@ const AdminDashboard = () => {
                     className="hidden"
                     onChange={handleImportExcel}
                   />
+
+                  <button
+                    type="button"
+                    onClick={handleOpenChangeEmailModal}
+                    className="bg-white bg-opacity-20 text-white hover:bg-opacity-30 p-2 rounded-lg transition-colors flex items-center justify-center shadow-md"
+                    title="Corregir email de usuario"
+                    aria-label="Abrir modal de correccion de email"
+                  >
+                    <Users className="w-5 h-5" />
+                  </button>
                 </>
               )}
 
@@ -2454,6 +2557,17 @@ const AdminDashboard = () => {
         onClose={() => setIsEditModalOpen(false)}
         onSubmit={handleSaveEditedSolicitud}
         initialData={selectedSolicitud}
+      />
+
+      <ChangeUserEmailModal
+        isOpen={isChangeEmailModalOpen}
+        onClose={handleCloseChangeEmailModal}
+        currentEmail={currentEmailDraft}
+        newEmail={newEmailDraft}
+        onCurrentEmailChange={setCurrentEmailDraft}
+        onNewEmailChange={setNewEmailDraft}
+        onSubmit={handleChangeUserEmail}
+        isSubmitting={isUpdatingEmail}
       />
     </div>
   );
