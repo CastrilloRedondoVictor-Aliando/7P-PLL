@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
 import { useAuth } from './hooks/useAuth';
 import { hasApiScope } from './config/msalConfig';
@@ -23,16 +23,20 @@ function App() {
       try {
         const response = await instance.handleRedirectPromise();
         const redirectToken = hasApiScope ? response?.accessToken : response?.idToken;
+        const redirectAccount = response?.account || null;
+
+        if (redirectAccount) {
+          instance.setActiveAccount(redirectAccount);
+        }
 
         if (response && redirectToken) {
           // Hubo un login exitoso, sincronizar con backend usando el token del response
-          hasSyncedSessionRef.current = true;
-          await handleLoginSuccess(redirectToken);
+          hasSyncedSessionRef.current = await handleLoginSuccess(redirectToken, redirectAccount);
         } else if (response) {
-          hasSyncedSessionRef.current = true;
-          await handleLoginSuccess();
+          hasSyncedSessionRef.current = await handleLoginSuccess(null, redirectAccount);
         }
       } catch (error) {
+        hasSyncedSessionRef.current = false;
         console.error('[App] Error procesando callback de login', error);
       } finally {
         setIsProcessingCallback(false);
@@ -53,9 +57,8 @@ function App() {
       if (!isAuthenticated || isProcessingCallback) return;
       if (hasSyncedSessionRef.current) return;
 
-      hasSyncedSessionRef.current = true;
       try {
-        await handleLoginSuccess();
+        hasSyncedSessionRef.current = await handleLoginSuccess();
       } catch (error) {
         hasSyncedSessionRef.current = false;
         console.error('[App] Error sincronizando sesion', error);

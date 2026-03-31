@@ -41,6 +41,31 @@ export const AuthProvider = ({ children }) => {
   const [isSignalRConnected, setIsSignalRConnected] = useState(false);
   const connectionRef = useRef(null);
 
+  const resolveCurrentAccount = useCallback((preferredAccount = null, preferredUser = null) => {
+    if (preferredAccount) {
+      return preferredAccount;
+    }
+
+    const activeAccount = instance.getActiveAccount();
+    if (activeAccount) {
+      return activeAccount;
+    }
+
+    const expectedOid = preferredUser?.entraIdOID || preferredUser?.id;
+    if (expectedOid) {
+      const matchingAccount = accounts.find((account) => {
+        const accountOid = account?.idTokenClaims?.oid || account?.localAccountId;
+        return accountOid === expectedOid;
+      });
+
+      if (matchingAccount) {
+        return matchingAccount;
+      }
+    }
+
+    return accounts[0] || null;
+  }, [accounts, instance]);
+
   const logTokenClaims = useCallback((token, source) => {
     if (!isAuthDebugEnabled || !token) return;
     try {
@@ -84,16 +109,71 @@ export const AuthProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isInitializing, accounts.length]);
 
+  useEffect(() => {
+    const currentAccount = resolveCurrentAccount(null, user);
+    const activeAccount = instance.getActiveAccount();
+
+    if (!currentAccount) {
+      if (activeAccount) {
+        instance.setActiveAccount(null);
+      }
+      return;
+    }
+
+    if (activeAccount?.homeAccountId !== currentAccount.homeAccountId) {
+      instance.setActiveAccount(currentAccount);
+    }
+  }, [instance, resolveCurrentAccount, user]);
+
+  const resetAuthClientState = useCallback(async () => {
+    if (connectionRef.current) {
+      try {
+        await connectionRef.current.stop();
+      } catch {
+      }
+      connectionRef.current = null;
+    }
+
+    setIsSignalRConnected(false);
+    setUser(null);
+    sessionStorage.removeItem('user');
+
+    try {
+      instance.setActiveAccount(null);
+      await instance.clearCache();
+    } catch {
+    }
+  }, [instance]);
+
+  const shouldRecoverAuthState = useCallback((error) => {
+    const diagnostic = [
+      error?.name,
+      error?.errorCode,
+      error?.message,
+      error?.payload?.error,
+      error?.payload?.code,
+      error?.payload?.message
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return isAuthorizationError(error)
+      || /token|invalid_grant|interaction_required|no_account_error|state_not_found|user_login_error|monitor_window_timeout/.test(diagnostic);
+  }, []);
+
   // Función auxiliar para obtener el token de acceso
   const getAccessToken = useCallback(async () => {
-    if (accounts.length === 0) {
+    const currentAccount = resolveCurrentAccount(null, user);
+
+    if (!currentAccount) {
       throw new Error('No hay cuenta autenticada');
     }
 
     try {
       const response = await instance.acquireTokenSilent({
         ...loginRequest,
-        account: accounts[0]
+        account: currentAccount
       });
       const token = hasApiScope ? response.accessToken : response.idToken;
       if (!token) {
@@ -115,10 +195,10 @@ export const AuthProvider = ({ children }) => {
         throw popupError;
       }
     }
-  }, [accounts, instance, logTokenClaims]);
+  }, [instance, logTokenClaims, resolveCurrentAccount, user]);
 
   // Manejar login exitoso de MSAL - sincronizar con backend
-  const handleLoginSuccess = useCallback(async (accessToken = null) => {
+  const handleLoginSuccess = useCallback(async (accessToken = null, preferredAccount = null) => {
     try {
       setLoading(true);
       
@@ -126,7 +206,10 @@ export const AuthProvider = ({ children }) => {
       const token = accessToken || await getAccessToken();
       logTokenClaims(token, 'sync-user request');
 
-      const account = accounts[0];
+      const account = resolveCurrentAccount(preferredAccount, user);
+      if (account) {
+        instance.setActiveAccount(account);
+      }
       const idTokenClaims = account?.idTokenClaims || {};
       const accountProfile = account
         ? {
@@ -157,6 +240,10 @@ export const AuthProvider = ({ children }) => {
       
       return true;
     } catch (error) {
+      if (shouldRecoverAuthState(error)) {
+        await resetAuthClientState();
+      }
+
       Swal.fire({
         icon: 'error',
         title: 'Error de autenticación',
@@ -167,7 +254,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [accounts, getAccessToken, normalizeUser]);
+  }, [getAccessToken, instance, logTokenClaims, normalizeUser, resetAuthClientState, resolveCurrentAccount, shouldRecoverAuthState, user]);
 
   // Inicializar conexión SignalR (usando @microsoft/signalr con Azure SignalR Service)
   const initializeSignalR = async () => {
@@ -312,8 +399,7 @@ export const AuthProvider = ({ children }) => {
       await instance.logoutRedirect();
     } catch (error) {
       // Forzar limpieza aunque falle MSAL
-      setUser(null);
-      sessionStorage.removeItem('user');
+      await resetAuthClientState();
     }
   };
 

@@ -37,6 +37,13 @@ const bootstrap = async () => {
 
   await msalInstance.initialize();
 
+  if (!msalInstance.getActiveAccount()) {
+    const [firstAccount] = msalInstance.getAllAccounts();
+    if (firstAccount) {
+      msalInstance.setActiveAccount(firstAccount);
+    }
+  }
+
   createRoot(document.getElementById('root')).render(
     <StrictMode>
       <MsalProvider instance={msalInstance}>
